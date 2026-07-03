@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Іпсомнія — Інфопротистояння · v0.3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0F1A; --panel:#111A2B; --panel2:#172236; --line:#26364F;
+  --text:#E9EFF8; --muted:#8DA0BC;
+  --hostile:#E5484D; --hostile-dim:#4A181C;
+  --gold:#F5C542; --gold-dim:#54430F;
+  --ok:#4CC38A; --purple:#B26AC4;
+  --r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:
+    radial-gradient(900px 500px at 50% -8%, #131F38 0%, var(--bg) 60%);
+  color:var(--text); font-family:'Inter',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  transition:background 1.2s ease;
+}
+/* Бос-режим (задача 8.3): темніший, червонявий фон на весь час боса */
+body.boss-mode{
+  background:
+    radial-gradient(900px 500px at 50% -8%, #2A1420 0%, #120609 60%);
+}
+/* CRT сканлайни */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:100;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px);}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:99;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.32) 100%);}
+.wrap{max-width:640px;margin:0 auto;padding:16px 16px 48px}
+.mono{font-family:'JetBrains Mono',monospace}
+.px{font-family:'Press Start 2P',monospace}
+
+/* ===== HUD ===== */
+.topbar{position:sticky;top:0;z-index:50;background:rgba(10,15,26,.94);backdrop-filter:blur(8px);border-bottom:2px solid var(--line);padding:10px 16px 10px}
+.topbar-inner{max-width:640px;margin:0 auto}
+.tb-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.tb-left{display:inline-flex;align-items:center;gap:8px}
+.tb-title{font-family:'Press Start 2P';font-size:10px;letter-spacing:.02em}
+.tb-title .x{color:var(--gold)}
+.sfx-btn{background:var(--panel2);border:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1;
+  padding:4px 6px;cursor:pointer;transition:border-color .15s,color .15s}
+.sfx-btn:hover{border-color:var(--gold);color:var(--gold)}
+.tb-prog{font-family:'Press Start 2P';font-size:8px;color:var(--muted)}
+.infl{position:relative;height:24px;border:2px solid var(--line);overflow:hidden;
+  background:linear-gradient(90deg,var(--hostile-dim) 0%,#141F33 46%,#141F33 54%,var(--gold-dim) 100%)}
+.infl-fill{position:absolute;inset:0;background:
+  repeating-linear-gradient(-55deg,rgba(229,72,77,.30) 0 6px,transparent 6px 12px);
+  transition:clip-path .7s cubic-bezier(.22,1,.36,1)}
+.infl-seg{position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0 calc(4% - 2px),var(--bg) calc(4% - 2px) 4%)}
+.infl-marker{position:absolute;top:-2px;bottom:-2px;width:6px;background:var(--gold);
+  box-shadow:0 0 10px var(--gold);transition:left .7s cubic-bezier(.22,1,.36,1)}
+.infl-num{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:'Press Start 2P';font-size:10px;color:var(--text);text-shadow:0 1px 4px #000;z-index:2}
+.hud2{display:flex;justify-content:space-between;align-items:center;margin-top:7px;font-family:'JetBrains Mono';font-size:11px;color:var(--muted);letter-spacing:.05em}
+.hud2 .streak{color:var(--gold)}
+.hud2 .streak.cold{color:var(--muted)}
+.hud2 .rep{color:var(--ok)}
+.hud2 .rep.low{color:var(--hostile)}
+.hud2 .badges span{letter-spacing:2px}
+.infl-labels{display:flex;justify-content:space-between;font-family:'JetBrains Mono';font-size:10px;margin-top:5px;letter-spacing:.1em}
+.infl-labels .l{color:var(--hostile)}.infl-labels .r{color:var(--gold)}
+.toast{position:fixed;top:110px;left:50%;transform:translateX(-50%) translateY(-8px);z-index:110;
+  font-family:'JetBrains Mono';font-size:13px;font-weight:500;padding:8px 16px;border:2px solid;
+  opacity:0;pointer-events:none;transition:all .4s ease}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.plus{background:#0F241B;color:var(--ok);border-color:#1F4A36}
+.toast.minus{background:#2B1517;color:var(--hostile);border-color:#5A1D22}
+
+/* ===== Загальне ===== */
+.screen{animation:fadeUp .4s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.eyebrow{font-family:'Press Start 2P';font-size:9px;letter-spacing:.06em;color:var(--gold);margin-bottom:12px;line-height:1.7}
+h1{font-family:'Press Start 2P';font-size:clamp(22px,6vw,34px);line-height:1.25;margin-bottom:16px}
+h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;margin-bottom:12px}
+.lead{color:var(--muted);font-size:15px;line-height:1.6;margin-bottom:8px}
+.card{background:var(--panel);border:2px solid var(--line);padding:18px;margin-bottom:12px}
+.btn{display:block;width:100%;text-align:center;font-family:'Press Start 2P';font-size:11px;
+  padding:16px 12px;border:2px solid #000;cursor:pointer;line-height:1.5;
+  background:var(--gold);color:#12100A;box-shadow:0 4px 0 #000;transition:transform .08s,box-shadow .08s;margin-top:16px}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #000}
+.btn:disabled{opacity:.35;cursor:default}
+.btn:focus-visible,.opt:focus-visible,.msg:focus-visible,.mode:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.btn.ghost{background:var(--panel);color:var(--muted);border-color:var(--line);box-shadow:0 4px 0 #060B14}
+.task{display:flex;gap:10px;align-items:flex-start;background:var(--panel2);border:2px solid var(--line);
+  border-left:4px solid var(--gold);padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.5}
+.task b{color:var(--gold)}
+@keyframes shake{0%,100%{transform:none}20%{transform:translateX(-5px)}45%{transform:translateX(5px)}70%{transform:translateX(-3px)}90%{transform:translateX(3px)}}
+.shake{animation:shake .45s ease}
+
+/* ===== Режими / ролі ===== */
+.modes{display:flex;flex-direction:column;gap:10px;margin-top:20px}
+.mode{background:var(--panel);border:2px solid var(--line);padding:16px;cursor:pointer;
+  transition:border-color .2s;position:relative;text-align:left;width:100%;color:var(--text)}
+.mode:not(.locked):hover{border-color:var(--gold)}
+.mode-name{font-family:'Press Start 2P';font-size:11px;margin-bottom:8px;line-height:1.5}
+.mode-desc{font-size:13px;color:var(--muted);line-height:1.55}
+.mode-badge{position:absolute;top:12px;right:12px;font-family:'Press Start 2P';font-size:7px;padding:5px 8px}
+.mode-badge.live{background:var(--gold);color:#12100A}
+.mode-badge.lock{background:var(--panel2);color:var(--muted);border:1px solid var(--line)}
+.mode.locked{opacity:.5;cursor:default}
+.role-stats{display:flex;gap:14px;margin-top:10px;font-family:'JetBrains Mono';font-size:11px;color:var(--gold)}
+
+/* ===== Мапа кампанії ===== */
+.map{display:flex;align-items:flex-start;justify-content:space-between;margin:26px 0 8px;position:relative}
+.map::before{content:'';position:absolute;top:17px;left:8%;right:8%;height:3px;background:var(--line);z-index:0}
+.node{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:8px;width:19%}
+.node .dot{width:34px;height:34px;border:3px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:'Press Start 2P';font-size:11px;color:var(--muted)}
+.node.done .dot{background:var(--gold);border-color:var(--gold);color:#12100A}
+.node.cur .dot{border-color:var(--gold);color:var(--gold);animation:blink 1.1s steps(2) infinite}
+.node.boss .dot{border-color:var(--hostile);color:var(--hostile)}
+.node.boss.cur .dot{background:var(--hostile-dim)}
+.node .nlabel{font-family:'JetBrains Mono';font-size:9px;color:var(--muted);text-align:center;line-height:1.4;letter-spacing:.03em}
+.node.boss .nlabel{color:var(--hostile)}
+@keyframes blink{50%{opacity:.35}}
+.cliff{background:var(--panel2);border:2px solid var(--line);border-left:4px solid var(--purple);padding:12px 14px;font-size:13px;color:#C9B3D6;line-height:1.6;margin-top:16px}
+.cliff b{font-family:'JetBrains Mono';font-size:10px;color:var(--purple);display:block;margin-bottom:5px;letter-spacing:.12em}
+
+/* ===== Стрічка ===== */
+.feed{display:flex;flex-direction:column;gap:10px}
+.msg{background:var(--panel);border:2px solid var(--line);padding:12px 14px;cursor:pointer;
+  transition:border-color .15s;position:relative}
+.msg:hover{border-color:#3A4E73}
+.msg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px}
+.msg-author{font-weight:600;font-size:13px;color:#B8C8E2}
+.msg-meta{font-family:'JetBrains Mono';font-size:10px;color:var(--muted);white-space:nowrap}
+.msg-text{font-size:14px;line-height:1.55}
+.msg-flag{display:inline-block;font-family:'JetBrains Mono';font-size:10px;color:var(--muted);
+  background:var(--panel2);border:1px solid var(--gold-dim);padding:3px 7px;margin-bottom:8px;letter-spacing:.03em}
+.msg-views{font-family:'JetBrains Mono';font-size:10px;color:var(--muted);margin-top:8px;text-align:right}
+.msg.sel{border-color:var(--gold)}
+.msg.hit{border-color:var(--hostile)}
+.msg.missed{border-color:var(--hostile);border-style:dashed}
+.msg.safe{border-color:var(--ok)}
+.msg .tag{position:absolute;top:-11px;right:10px;font-family:'Press Start 2P';font-size:7px;padding:4px 7px}
+.msg .tag.h{background:var(--hostile);color:#fff}
+.msg .tag.hs{background:var(--purple);color:#fff}
+.msg .tag.n{background:#1F4A36;color:var(--ok)}
+.locked-feed{pointer-events:none}
+
+/* ===== Опції ===== */
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{background:var(--panel);border:2px solid var(--line);padding:14px;cursor:pointer;
+  text-align:left;color:var(--text);font-family:'Inter';font-size:14px;line-height:1.5;transition:border-color .15s;width:100%}
+.opt:hover{border-color:#3A4E73}
+.opt b{display:block;font-size:13px;margin-bottom:4px;color:#B8C8E2}
+.opt.good{border-color:var(--ok);background:#0F231B}
+.opt.bad{border-color:var(--hostile);background:#231216}
+.opt.mid{border-color:var(--gold-dim)}
+.opt.dim{opacity:.4}
+.expl{margin-top:8px;font-size:13px;color:var(--muted);line-height:1.5;border-top:1px dashed var(--line);padding-top:8px}
+
+/* ===== Таймер ===== */
+.timer{display:flex;align-items:center;gap:10px;font-family:'Press Start 2P';font-size:11px;color:var(--muted);
+  background:var(--panel2);border:2px solid var(--line);padding:10px 12px;margin-bottom:12px}
+.timer .t{color:var(--gold);min-width:30px}
+.timer.hot .t{color:var(--hostile);animation:blink .8s steps(2) infinite}
+.timer-bar{flex:1;height:8px;background:var(--line);overflow:hidden}
+.timer-bar i{display:block;height:100%;background:var(--gold);transition:width 1s linear}
+.timer.hot .timer-bar i{background:var(--hostile)}
+.timer .note{font-family:'JetBrains Mono';font-size:10px}
+
+/* ===== Wildcard ===== */
+.wild{border:2px solid var(--purple);background:linear-gradient(160deg,#1B1426,var(--panel));padding:18px;margin-bottom:12px}
+.wild h3{font-family:'Press Start 2P';font-size:10px;color:var(--purple);margin-bottom:12px;line-height:1.7}
+.wild p{font-size:14px;line-height:1.6}
+
+/* ===== Фінал ===== */
+.debrief{border-left:4px solid var(--gold)}
+.rank{font-family:'Press Start 2P';font-size:clamp(16px,5vw,24px);line-height:1.5;margin:14px 0}
+.rank.gold{color:var(--gold)} .rank.mid{color:#B8C8E2} .rank.low{color:var(--hostile)}
+.stat{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.stat:last-child{border-bottom:none}
+.stat .v{font-family:'JetBrains Mono';color:var(--gold)}
+.vuln-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chip{font-family:'Press Start 2P';font-size:8px;padding:7px 10px;border:2px solid;line-height:1.4}
+.chip.ok{color:var(--ok);border-color:#1F4A36;background:#0F231B}
+.chip.vuln{color:var(--hostile);border-color:#5A1D22;background:#231216}
+/* Задача 12, В8: банер загрози перед стрічкою боса */
+.attack-banner{background:#231216;border:2px solid var(--hostile);color:var(--hostile);
+  font-family:'Press Start 2P';font-size:11px;text-align:center;letter-spacing:.05em;
+  padding:14px 10px;margin-bottom:14px;line-height:1.6}
+.crisis{background:#231216;border:2px solid #5A1D22;padding:16px;margin-bottom:12px}
+.crisis h3{font-family:'Press Start 2P';font-size:10px;color:var(--hostile);margin-bottom:10px;line-height:1.7}
+.crisis p{font-size:14px;color:#D8A9AC;line-height:1.6}
+.demo-note{background:var(--panel2);border:2px solid var(--gold-dim);padding:18px;margin:16px 0;text-align:left}
+.demo-note h3{font-family:'Press Start 2P';font-size:9px;color:var(--gold);margin-bottom:12px;line-height:1.7}
+.demo-note ul{list-style:none}
+.demo-note li{font-size:13px;color:var(--muted);line-height:1.7;padding-left:16px;position:relative}
+.demo-note li::before{content:"▸";position:absolute;left:0;color:var(--gold)}
+.footer-note{font-family:'JetBrains Mono';font-size:10px;color:#4A5A75;text-align:center;margin-top:28px;letter-spacing:.08em}
+
+/* ===== Аватари ролей ===== */
+.avatar{position:relative;display:inline-block;flex:none;border:2px solid var(--acol,var(--line));background:var(--panel2);overflow:hidden}
+.avatar-ini{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Press Start 2P';color:#0A0F1A;background:var(--acol,var(--muted))}
+.avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.av-lg{width:56px;height:56px}.av-lg .avatar-ini{font-size:13px}
+.av-sm{width:22px;height:22px}.av-sm .avatar-ini{font-size:8px}
+.role-card{display:flex;gap:14px;align-items:center}
+.role-text{flex:1;min-width:0}
+.hud-left{display:inline-flex;align-items:center;gap:7px}
+.hud-av{display:inline-flex;align-items:center}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+.bob{animation:bob 2.2s ease-in-out infinite}
+
+/* ===== Ранг операції (S/A/B/C) ===== */
+.grade{font-family:'Press Start 2P';font-size:clamp(52px,17vw,92px);line-height:1;margin:4px 0 18px;text-shadow:0 4px 0 #000}
+.gr-a{color:var(--gold)}.gr-b{color:#B8C8E2}.gr-c{color:var(--hostile)}
+.grade-sub{font-family:'JetBrains Mono';font-size:11px;color:var(--muted);letter-spacing:.08em;margin:-10px 0 18px}
+
+/* ===== OSINT: перевірка джерела ===== */
+.osint-bar{font-family:'JetBrains Mono';font-size:11px;color:var(--gold);letter-spacing:.05em;background:var(--panel2);border:2px solid var(--gold-dim);padding:8px 12px;margin-bottom:10px}
+.osint-bar span{color:var(--text)}
+.msg-tools{display:flex;align-items:center;gap:8px}
+.osint-btn{background:var(--panel2);border:1px solid var(--line);color:var(--muted);font-size:13px;line-height:1;padding:4px 6px;cursor:pointer;transition:border-color .15s,color .15s}
+.osint-btn:hover{border-color:var(--gold);color:var(--gold)}
+.osint-btn.used{opacity:.5;border-color:var(--gold-dim)}
+.osint-modal{position:fixed;inset:0;z-index:200;background:rgba(6,10,18,.86);display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeUp .2s ease both}
+.osint-card{background:var(--panel);border:2px solid var(--gold);box-shadow:0 0 0 1px var(--gold-dim),0 20px 60px rgba(0,0,0,.5);
+  max-width:460px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;animation:osintPop .25s cubic-bezier(.22,1,.36,1) both}
+@keyframes osintPop{from{opacity:0;transform:scale(.96) translateY(6px)}to{opacity:1;transform:none}}
+.osint-h{display:flex;justify-content:space-between;align-items:center;font-family:'Press Start 2P';font-size:9px;color:var(--gold);letter-spacing:.04em;
+  margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--gold-dim)}
+.osint-x{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;transition:color .15s}
+.osint-x:hover{color:var(--hostile)}
+.osint-name{font-weight:600;font-size:16px;color:#fff;padding-bottom:12px;margin-bottom:6px}
+.osint-row{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
+.osint-row:last-of-type{border-bottom:none}
+.osint-ico{flex:none;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:var(--panel2);border:1px solid var(--gold-dim);font-size:14px}
+.osint-rowbody{flex:1;min-width:0}
+.osint-rowbody b{display:block;font-family:'JetBrains Mono';font-size:10px;color:var(--gold);letter-spacing:.06em;margin-bottom:4px}
+.osint-rowbody span{color:var(--text);font-size:13px;line-height:1.55}
+.osint-post{display:block;font-size:12px;color:var(--muted);line-height:1.5;padding:5px 9px;margin-top:5px;
+  background:var(--panel2);border-left:2px solid var(--gold-dim)}
+.osint-post:first-child{margin-top:0}
+.osint-card .btn{margin-top:16px}
+
+/* ===== Вступна катсцена: Інструктор ===== */
+.intro-screen{display:flex;flex-direction:column;align-items:center;padding-top:6vh;position:relative}
+.intro-skip{position:absolute;top:0;right:0;background:var(--panel);border:2px solid var(--line);color:var(--muted);
+  font-size:9px;padding:9px 12px;cursor:pointer;transition:border-color .15s,color .15s}
+.intro-skip:hover{border-color:var(--gold);color:var(--gold)}
+.instr-portrait{position:relative;width:44vw;max-width:180px;height:44vw;max-height:180px;
+  border:3px solid var(--line);background:var(--panel2);margin-bottom:18px;overflow:hidden;flex:none}
+.instr-silhouette{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+.instr-silhouette::before{content:'';width:64%;height:78%;background:var(--muted);opacity:.45;
+  clip-path:polygon(50% 0%,68% 10%,76% 32%,70% 46%,84% 56%,92% 100%,8% 100%,16% 56%,30% 46%,24% 32%,32% 10%)}
+.instr-portrait img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.dialogue-box{width:100%;max-width:560px;background:var(--panel);border:2px solid var(--line);border-left:4px solid var(--gold);
+  padding:16px 18px;position:relative;cursor:pointer;min-height:104px}
+.dlg-name{font-size:10px;color:var(--gold);margin-bottom:10px;letter-spacing:.05em}
+.dlg-text{font-family:'Inter';font-size:16px;line-height:1.6;color:var(--text);min-height:3.2em;padding-right:20px}
+.dlg-next{position:absolute;right:14px;bottom:10px;color:var(--gold);font-size:14px;opacity:0;transition:opacity .2s}
+.dlg-next.show{opacity:1;animation:blink 1s steps(2) infinite}
+
+/* ===== Жива стрічка (задача 8.2) ===== */
+.msg.typing{display:flex;align-items:center;min-height:20px;padding:14px}
+.typing-dots{font-size:13px;color:var(--muted);letter-spacing:4px;animation:typingPulse 1s ease-in-out infinite}
+@keyframes typingPulse{0%,100%{opacity:.25}50%{opacity:.9}}
+
+/* ===== Розкриті наративи (задача 9): пам'ять вибору між фазами ===== */
+.narr-block{margin-bottom:14px}
+.narr-label{font-family:'JetBrains Mono';font-size:10px;color:var(--muted);letter-spacing:.1em;margin-bottom:8px}
+.narr-list{display:flex;flex-direction:column;gap:6px}
+.narr-card{background:var(--panel2);border:1px solid var(--line);padding:8px 10px;cursor:pointer;transition:border-color .15s}
+.narr-card:hover{border-color:#3A4E73}
+.narr-card.narr-missed{border-color:var(--hostile);border-style:dashed}
+.narr-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 8px}
+.narr-author{font-size:12px;font-weight:600;color:#B8C8E2;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.narr-tags{display:flex;gap:5px;flex:none}
+.narr-tag{font-family:'Press Start 2P';font-size:6px;padding:3px 5px;line-height:1;white-space:nowrap}
+.narr-tag.ob{background:var(--hostile);color:#fff}
+.narr-tag.sub{background:var(--purple);color:#fff}
+.narr-tag.miss{background:transparent;border:1px solid var(--hostile);color:var(--hostile)}
+.narr-text{font-size:12px;color:var(--muted);line-height:1.5;margin-top:5px}
+.narr-text.full{display:none;color:var(--text)}
+.narr-card.narr-open .narr-text.full{display:block}
+.narr-card.narr-open .narr-text.short{display:none}
+/* Задача 12, Б4: ярлик підтипу з'являється після фази 2 з коротким fade+slide,
+   щоб гравець побачив сам момент присвоєння. */
+.narr-subtype{display:inline-block;font-family:'JetBrains Mono';font-size:10px;color:var(--gold);
+  letter-spacing:.04em;margin-top:5px;padding:2px 0;
+  animation:narrSubtypeIn .4s ease both}
+.narr-subtype::before{content:"▸ "}
+@keyframes narrSubtypeIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+
+/* ===== Бос-глітч (задача 8.3): RGB-зсув + jitter, 300-400мс кожні 3-5с ===== */
+.glitch-active{
+  position:relative;
+  animation:glitchShift 70ms steps(2) infinite;
+  text-shadow:-2px 0 var(--hostile),2px 0 #2FD1E0;
+}
+@keyframes glitchShift{
+  0%{transform:translate(0,0)}
+  20%{transform:translate(-2px,1px)}
+  40%{transform:translate(2px,-1px)}
+  60%{transform:translate(-1px,0)}
+  80%{transform:translate(1px,1px)}
+  100%{transform:translate(0,0)}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .glitch-active{animation:glitchShift 70ms steps(2) infinite!important}
+}
+
+/* ===== Вбудований туторіал (задача 11): підказки Інструктора =====
+   Задача 12, блок А2: верхній правий кут, нижче HUD (top виставляє JS
+   за фактичною висотою топбару), щоб не перекривати шкалу впливу й довіру. */
+.hint-panel{position:fixed;right:12px;z-index:150;
+  width:min(300px, calc(100vw - 24px));
+  display:flex;flex-direction:column;gap:8px;
+  background:var(--panel);border:2px solid var(--gold);
+  padding:12px 14px;cursor:pointer;
+  transform:translateX(130%);transition:transform .3s ease;}
+.hint-panel.show{transform:translateX(0)}
+.hint-panel-top{display:flex;gap:10px;align-items:flex-start}
+.hint-portrait{position:relative;width:36px;height:36px;flex:none;border:2px solid var(--gold);background:var(--panel2);overflow:hidden}
+.hint-silhouette{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+.hint-silhouette::before{content:'';width:64%;height:78%;background:var(--muted);opacity:.45;
+  clip-path:polygon(50% 0%,68% 10%,76% 32%,70% 46%,84% 56%,92% 100%,8% 100%,16% 56%,30% 46%,24% 32%,32% 10%)}
+.hint-portrait img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.hint-body{flex:1;min-width:0}
+.hint-name{font-family:'Press Start 2P';font-size:8px;color:var(--gold);margin-bottom:4px;letter-spacing:.05em}
+.hint-text{font-size:13px;line-height:1.5;color:var(--text)}
+.hint-ok{align-self:flex-end;font-family:'Press Start 2P';font-size:9px;background:var(--gold);color:#12100A;border:2px solid #000;padding:8px 12px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topbar" style="display:none">
+  <div class="topbar-inner">
+    <div class="tb-row">
+      <span class="tb-left"><span class="tb-title px">ІПСО<span class="x">·</span>МНІЯ</span><button class="sfx-btn" id="sfxBtn" onclick="toggleSfx()" title="Звук" aria-label="Звук">🔊</button></span>
+      <div class="tb-prog px" id="prog"></div>
+    </div>
+    <div class="infl">
+      <div class="infl-fill" id="inflFill"></div>
+      <div class="infl-seg"></div>
+      <div class="infl-marker" id="inflMarker"></div>
+      <div class="infl-num" id="inflNum">50</div>
+    </div>
+    <div class="infl-labels"><span class="l">◂ ВПЛИВ ІПСО</span><span class="r">СТІЙКІСТЬ ▸</span></div>
+    <div class="hud2">
+      <span class="hud-left"><span class="hud-av" id="hudAvatar"></span><span class="streak" id="hudStreak">СЕРІЯ 0</span></span>
+      <span class="rep" id="hudRep">ДОВІРА 100</span>
+      <span class="badges" id="hudBadges"></span>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<div class="wrap" id="app"></div>
+
+<script src="content.js"></script>
+<script src="engine.js"></script>
+</body>
+</html>
