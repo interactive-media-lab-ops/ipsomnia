@@ -13,13 +13,15 @@ let timerInt=null, wtimerInt=null;
    ===================================================================== */
 const SFX_FILES = {
   click:"assets/sfx/click.ogg", tick:"assets/sfx/tick.ogg", alert:"assets/sfx/alert.ogg",
-  gain:"assets/sfx/gain.ogg", loss:"assets/sfx/loss.ogg", badge:"assets/sfx/badge.ogg"
+  gain:"assets/sfx/gain.ogg", loss:"assets/sfx/loss.ogg", badge:"assets/sfx/badge.ogg",
+  result:"assets/sfx/result.ogg"
 };
 const SFX = (function(){
-  let muted = false, unlocked = false, ambientWanted = false;
+  let muted = false, unlocked = false, ambientWanted = false, introWanted = false;
   const ambient = new Audio('assets/sfx/ambient.ogg');
   const bossAmbient = new Audio('assets/sfx/boss_ambient.ogg');
-  [ambient, bossAmbient].forEach(a=>{ a.loop = true; a.volume = 0; a.preload = 'auto'; });
+  const introMusic = new Audio('assets/sfx/intro.ogg');
+  [ambient, bossAmbient, introMusic].forEach(a=>{ a.loop = true; a.volume = 0; a.preload = 'auto'; });
   /* setInterval, а не requestAnimationFrame: rAF повністю зупиняється в неактивній
      вкладці, і гучність застрягала б на нулі. setInterval лише тротлиться, тому
      фейд завжди рано чи пізно доходить до цілі. */
@@ -35,32 +37,60 @@ const SFX = (function(){
   function unlock(){                          // перший клік користувача знімає блокування автоплею
     if(unlocked) return; unlocked = true;
     if(ambientWanted && ambient.paused) ambient.play().catch(()=>{});
+    if(introWanted && introMusic.paused) introMusic.play().catch(()=>{});
   }
   function play(name){
     if(muted) return;
     const src = SFX_FILES[name]; if(!src) return;
     try{ const a = new Audio(src); a.volume = 0.55; a.play().catch(()=>{}); }catch(e){}
   }
-  /* .paused-перевірка: startAmbient() кличуть і з катсцени, і з вибору ролі —
-     повторний виклик не має ще раз смикати play() на вже граючому треку. */
+  /* .paused-перевірка: повторний виклик не має ще раз смикати play() на вже граючому треку. */
   function startAmbient(){
     ambientWanted = true;
     if(unlocked && ambient.paused) ambient.play().catch(()=>{});
     fadeTo(ambient, muted?0:0.34, 900);
+  }
+  // Вступна катсцена (задача 7): свій трек, окремий від геймплейного амбієнту.
+  function startIntroMusic(){
+    introWanted = true;
+    if(unlocked && introMusic.paused) introMusic.play().catch(()=>{});
+    fadeTo(introMusic, muted?0:0.34, 900);
   }
   function crossfadeToBoss(){
     fadeTo(ambient, 0, 1500);
     if(unlocked && bossAmbient.paused) bossAmbient.play().catch(()=>{});
     fadeTo(bossAmbient, muted?0:0.34, 1500);
   }
-  function stopAmbient(){
-    ambientWanted = false;
-    fadeTo(ambient, 0, 400); fadeTo(bossAmbient, 0, 400);
-    setTimeout(()=>{ try{ ambient.pause(); bossAmbient.pause(); ambient.currentTime=0; bossAmbient.currentTime=0; }catch(e){} }, 450);
+  function crossfadeToAmbient(){
+    fadeTo(bossAmbient, 0, 1500);
+    if(unlocked && ambient.paused) ambient.play().catch(()=>{});
+    fadeTo(ambient, muted?0:0.34, 1500);
   }
-  function setMuted(v){ muted = v; ambient.muted = v; bossAmbient.muted = v; }
+  // Перехід катсцена → мапа кампанії: кросфейд intro.ogg у геймплейний ambient.
+  function crossfadeIntroToAmbient(){
+    introWanted = false;
+    fadeTo(introMusic, 0, 1500);
+    if(unlocked && ambient.paused) ambient.play().catch(()=>{});
+    ambientWanted = true;
+    fadeTo(ambient, muted?0:0.34, 1500);
+    setTimeout(()=>{ if(introWanted) return; try{ introMusic.pause(); introMusic.currentTime=0; }catch(e){} }, 1550);
+  }
+  function stopAmbient(){
+    ambientWanted = false; introWanted = false;
+    fadeTo(ambient, 0, 400); fadeTo(bossAmbient, 0, 400); fadeTo(introMusic, 0, 400);
+    setTimeout(()=>{ if(ambientWanted || introWanted) return; try{ ambient.pause(); bossAmbient.pause(); introMusic.pause(); ambient.currentTime=0; bossAmbient.currentTime=0; introMusic.currentTime=0; }catch(e){} }, 450);
+  }
+  function setMuted(v){
+    muted = v; ambient.muted = v; bossAmbient.muted = v; introMusic.muted = v;
+    // M2: unmute мав лишати трек на гучності 0 — дофейдити активний трек назад до робочого рівня
+    if(!v && ambientWanted){
+      const active = document.body.classList.contains('boss-mode') ? bossAmbient : ambient;
+      fadeTo(active, 0.34, 900);
+    }
+    if(!v && introWanted) fadeTo(introMusic, 0.34, 900);
+  }
   function toggle(){ setMuted(!muted); return muted; }
-  return { play, startAmbient, crossfadeToBoss, stopAmbient, toggle, unlock, isMuted:()=>muted };
+  return { play, startAmbient, startIntroMusic, crossfadeToBoss, crossfadeToAmbient, crossfadeIntroToAmbient, stopAmbient, toggle, unlock, isMuted:()=>muted };
 })();
 function toggleSfx(){
   SFX.unlock();
@@ -92,8 +122,9 @@ function gainAdj(v, isCounter){
 let tutorialDone = false;
 const hintsShown = new Set();
 let hintQueue = [], hintBusy = false;
-function showHint(id){
-  if(tutorialDone || hintsShown.has(id)) return;
+function showHint(id, force){
+  if(hintsShown.has(id)) return;
+  if(!force && tutorialDone) return;
   const t = TUTORIAL.find(x=>x.id===id); if(!t) return;
   hintsShown.add(id);
   hintQueue.push({id, text:t.text});
@@ -107,10 +138,12 @@ function advanceHintQueue(){
   // Заморозка стається до першого тіку, тому без підпису здається, що таймер "не запустився" —
   // явно показуємо паузу, щоб це читалось як стан, а не поломка.
   const freeze = (id==='counter_enter' && timerInt);
+  const freezeWild = (id==='wildcard_first' && wtimerInt);   // FIX 2б: той самий патерн заморозки для choice-wildcard
   if(freeze){
     clearInterval(timerInt); timerInt=null;
     const note = document.querySelector('.timer .note'); if(note) note.textContent = '⏸ пауза: підказка Інструктора';
   }
+  if(freezeWild){ clearInterval(wtimerInt); wtimerInt=null; }
   const wrap = document.createElement('div');
   wrap.className = 'hint-panel';
   wrap.innerHTML =
@@ -129,14 +162,20 @@ function advanceHintQueue(){
         const note = document.querySelector('.timer .note'); if(note) note.textContent = 'вакуум працює на ворога';
         startTimer(S._timeLeft, S._op.timeTotal);
       }
+      if(freezeWild && !S._wildDone && S._wildLeft>0 && document.getElementById('wT')){
+        startWildTimer(S._wildLeft, 15);
+      }
       advanceHintQueue();
     }, 250);
   });
   document.body.appendChild(wrap);
-  // верхній правий кут, нижче HUD: top = фактичний низ топбару (якщо він видимий)
-  const topbarEl = document.getElementById('topbar');
-  const topOffset = (topbarEl && topbarEl.style.display!=='none') ? topbarEl.getBoundingClientRect().bottom+8 : 16;
-  wrap.style.top = topOffset+'px';
+  // верхній правий кут, нижче HUD: top = фактичний низ топбару (якщо він видимий).
+  // На мобілі (≤560px) inline-top не виставляється — позицію повністю тримає CSS bottom.
+  if(window.innerWidth > 560){
+    const topbarEl = document.getElementById('topbar');
+    const topOffset = (topbarEl && topbarEl.style.display!=='none') ? Math.max(8, topbarEl.getBoundingClientRect().bottom+8) : 16;
+    wrap.style.top = topOffset+'px';
+  }
   requestAnimationFrame(()=>wrap.classList.add('show'));
 }
 
@@ -178,14 +217,26 @@ function hud(){
   rp.className = 'rep'+(S.rep<50?' low':'');
   bd.innerHTML = '<span>'+SCENARIOS.map(sc=>S.badges.includes(sc.badge)?'▣':'▢').join('')+'</span>';
 }
-let toastT;
+/* M5: черга тостів — активний тост дограє свій час, наступний чекає в масиві
+   й показується після нього, замість того щоб перебивати поточний. */
+let toastQueue = [], toastBusy = false;
 function toast(txt,plus){
+  toastQueue.push({txt,plus});
+  if(!toastBusy) processToastQueue();
+}
+function processToastQueue(){
+  if(!toastQueue.length){ toastBusy=false; return; }
+  toastBusy = true;
+  const {txt,plus} = toastQueue.shift();
   const t=document.getElementById('toast');
   t.textContent=txt; t.className='toast show '+(plus===true||plus==='plus'?'plus':'minus');
-  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1700);
+  setTimeout(()=>{
+    t.classList.remove('show');
+    setTimeout(processToastQueue, 400);
+  }, 1700);
 }
 function prog(){ document.getElementById('prog').textContent = (S.i+1)+'/'+SCENARIOS.length; }
-function render(html){ stopAllTimers(); stopBossGlitch(); document.querySelectorAll('.osint-modal').forEach(e=>e.remove()); document.querySelectorAll('.hint-panel').forEach(e=>e.remove()); hintQueue=[]; hintBusy=false; app.innerHTML = '<div class="screen">'+html+'</div>'; window.scrollTo({top:0}); }
+function render(html){ stopAllTimers(); stopBossGlitch(); document.querySelectorAll('.osint-modal').forEach(e=>e.remove()); document.querySelectorAll('.hint-panel').forEach(e=>e.remove()); hintQueue=[]; hintBusy=false; toastQueue=[]; app.innerHTML = '<div class="screen">'+html+'</div>'; window.scrollTo({top:0}); }
 function shuffled(n){ const a=[...Array(n).keys()]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function stopAllTimers(){ if(timerInt){clearInterval(timerInt);timerInt=null;} if(wtimerInt){clearInterval(wtimerInt);wtimerInt=null;} if(S._viewsInt){clearInterval(S._viewsInt);S._viewsInt=null;} }
 
@@ -198,23 +249,50 @@ function startTimer(seconds, total){
   total = total || seconds;   // total лишається сталим при відновленні після заморозки підказкою
   const startedAt = Date.now();
   let lastLeft = seconds;
+  let vacuumStarted = false, vacuumTicksApplied = 0;
   S._timeLeft = seconds;
   const el=document.getElementById('timerT'), bar=document.getElementById('timerBar'), box=document.getElementById('timerBox');
   function tick(){
     const elapsed = Math.floor((Date.now()-startedAt)/1000);
     const left = Math.max(0, seconds-elapsed);
     S._timeLeft = left;
+    if(left<=0){
+      // FIX 1: на нулі тиск не зникає — вакуум-режим триває, поки гравець не відповість
+      if(!vacuumStarted){
+        vacuumStarted = true;
+        setRep(-3);   // жива довіра: промовчав у вакуумі
+        if(S._op) S._op.timedOut = true;   // PATCH B1: таймаут = помилка
+        if(el) el.textContent = 'ВАКУУМ';
+        if(bar) bar.style.width = '0%';
+        if(box) box.classList.add('hot');
+        const note = document.querySelector('.timer .note'); if(note) note.textContent = 'ворог заповнює тишу';
+      }
+      const vacElapsed = elapsed - seconds;
+      const dueTicks = Math.floor(vacElapsed/5);
+      // PATCH: агрегація catch-up тостів — один виклик на всі пропущені тіки замість N
+      const n = dueTicks - vacuumTicksApplied;
+      if(n>0){ vacuumTicksApplied = dueTicks; setInfl(pen(-5)*n,'Вакуум'); }   // PATCH B2: буст вакууму
+      lastLeft = 0;
+      return;
+    }
     if(el) el.textContent = left;
     if(bar) bar.style.width = (left/total*100)+'%';
     if(left<=12 && box) box.classList.add('hot');
     // побічні ефекти прив'язані до КОЖНОЇ цілої секунди, яку таймер щойно перетнув —
-    // навіть якщо тротлінг фонової вкладки "проскочив" одразу кілька секунд за раз
+    // навіть якщо тротлінг фонової вкладки "проскочив" одразу кілька секунд за раз.
+    // PATCH: тик-звук і штраф інфовакууму агрегуються — один тост/один звук на весь
+    // пропущений діапазон, а не по одному на кожну перетнуту секунду.
+    const spanCovered = lastLeft - left;
+    let count = 0, tickPlayed = false;
     for(let s=lastLeft-1; s>=left; s--){
-      if(s<=10 && s>0) SFX.play('tick');
-      if(s>0 && s%9===0) setInfl(pen(-2),'Інфовакуум',false);
+      if(s<=10 && s>0){
+        if(spanCovered>3){ if(!tickPlayed){ SFX.play('tick'); tickPlayed=true; } }
+        else SFX.play('tick');
+      }
+      if(s>0 && s%9===0) count++;
     }
+    if(count>0) setInfl(pen(-2)*count,'Інфовакуум',false);
     lastLeft = left;
-    if(left<=0){ clearInterval(timerInt); timerInt=null; setRep(-3); }   // жива довіра: промовчав у вакуумі
   }
   timerInt = setInterval(tick, 1000);
 }
@@ -250,7 +328,7 @@ function modeSelect(){
         <button class="mode" onclick="startIntro()">
           <span class="mode-badge live px">ГРАТИ</span>
           <div class="mode-name">ІНФОСТІЙКІСТЬ</div>
-          <div class="mode-desc">Базовий режим для будь-кого. Розпізнавання ворожих наративів, аналіз технік, контрнаративи. Кампанія з 5 операцій.</div>
+          <div class="mode-desc">Базовий режим для будь-кого. Розпізнавання ворожих наративів, аналіз технік, контрнаративи. Кампанія з 6 операцій.</div>
         </button>
         <div class="mode locked" aria-disabled="true">
           <span class="mode-badge lock px">СКОРО</span>
@@ -283,20 +361,31 @@ let blinkTimeout = null;
 let instrImgOk = true;
 
 /* Портрет інструктора. Якщо файлів instructor_N.png ще нема — лишається
-   піксельний силует, бо onerror лише ховає <img>, нічого не ламає. */
+   піксельний силует, бо onerror лише ховає <img>, нічого не ламає.
+   PATCH F2: раніше onerror будь-якого кадру (найчастіше 4-го, блимання)
+   ховав img назавжди. Тепер кожен кадр перевіряється окремо через
+   preloadFrames, і відсутність одного кадру не вбиває анімацію решти. */
+let framesOK = {};   // src -> true після успішного завантаження
+function preloadFrames(frames){
+  framesOK = {};
+  frames.forEach(src=>{ const im=new Image(); im.onload=()=>{framesOK[src]=true;}; im.src=src; });
+}
 function instructorHTML(){
   return '<div class="instr-portrait" id="instrPortrait">'
        +   '<div class="instr-silhouette"></div>'
-       +   '<img id="instrImg" src="'+INSTRUCTOR.frames[0]+'" alt="" onerror="instrImgFailed()">'
+       +   '<img id="instrImg" src="'+activePortrait[0]+'" alt="" onerror="instrImgFailed()">'
        + '</div>';
 }
 function instrImgFailed(){
-  instrImgOk = false;
-  const im = document.getElementById('instrImg'); if(im) im.style.display='none';
+  const im = document.getElementById('instrImg');
+  if(im && framesOK[activePortrait[0]]){ im.src = activePortrait[0]; return; }  // відкат на кадр 1
+  instrImgOk = false; if(im) im.style.display='none';                            // нема навіть кадру 1 — силует
 }
 function setInstrFrame(n){
   if(!instrImgOk) return;
-  const im = document.getElementById('instrImg'); if(im) im.src = INSTRUCTOR.frames[n-1];
+  const src = activePortrait[n-1];
+  if(!framesOK[src]) return;              // кадру нема — лишаємось на поточному, без onerror-смерті
+  const im = document.getElementById('instrImg'); if(im) im.src = src;
 }
 function startTalkAnim(){
   stopTalkAnim();
@@ -327,7 +416,9 @@ function clearIntroTimers(){
    програти і що робити після (roleSelect чи запуск операції боса). */
 let activeDialogue = DIALOGUE;
 let dialogueDoneCb = roleSelect;
+let activePortrait = INSTRUCTOR.frames, activeSpeaker = 'ІНСТРУКТОР';
 function renderDialogueScreen(){
+  preloadFrames(activePortrait);
   instrImgOk = true;
   introState = null;
   render(`
@@ -336,7 +427,7 @@ function renderDialogueScreen(){
       ${instructorHTML()}
       <div class="dialogue-box" id="dlgBox" onclick="advanceDialogue()" role="button" tabindex="0"
            onkeydown="if(event.key==='Enter'||event.key===' ')advanceDialogue()">
-        <div class="dlg-name px">ІНСТРУКТОР</div>
+        <div class="dlg-name px">${activeSpeaker}</div>
         <div class="dlg-text" id="dlgText"></div>
         <div class="dlg-next" id="dlgNext">▼</div>
       </div>
@@ -345,16 +436,22 @@ function renderDialogueScreen(){
 }
 function startIntro(){
   if(introSeen){ roleSelect(); return; }
-  SFX.startAmbient();   // музика стартує разом із першою катсценою, не чекає вибору ролі
+  SFX.startIntroMusic();   // окремий трек для катсцени, стартує разом із нею, не чекає вибору ролі
   activeDialogue = DIALOGUE;
   dialogueDoneCb = ()=>{ introSeen=true; roleSelect(); };
+  activePortrait = INSTRUCTOR.frames; activeSpeaker = 'ІНСТРУКТОР';
   renderDialogueScreen();
 }
 /* Тригер: клік «ФІНАЛЬНА ОПЕРАЦІЯ» на мапі, перед запуском операції боса. */
 function startBossIntro(){
   activeDialogue = BOSS_DIALOGUE;
   dialogueDoneCb = startScenario;
+  activePortrait = BOSS_CHAR.frames; activeSpeaker = BOSS_CHAR.name;
+  document.body.classList.add('boss-mode');   // фон уже червоний до входу в операцію; startScenario підтвердить клас
+  SFX.crossfadeToBoss();
   renderDialogueScreen();
+  const p = document.getElementById('instrPortrait');
+  if(p){ p.classList.add('glitch-target'); initGlitch('.glitch-target'); }
 }
 function playLine(idx){
   clearIntroTimers();
@@ -423,7 +520,7 @@ function pickRole(i){
   S.role = ROLES[i];
   document.getElementById('topbar').style.display='block';
   hud();
-  SFX.startAmbient();
+  SFX.crossfadeIntroToAmbient();   // перехід на мапу кампанії: кросфейд intro.ogg → ambient.ogg
   campaignMap();
 }
 
@@ -433,10 +530,15 @@ function campaignMap(cliff){
   const btnLabel = isBoss ? 'ФІНАЛЬНА ОПЕРАЦІЯ' : 'ОПЕРАЦІЯ '+(S.i+1);
   render(`
     <div class="eyebrow">МАПА КАМПАНІЇ</div>
-    <div class="map">
+    <div class="map-geo">
+      <img class="map-bg" src="assets/map_ukraine.png" alt="" onerror="this.remove()">
       ${SCENARIOS.map((sc,idx)=>{
-        let cls='node'+(sc.boss?' boss':'')+(idx<S.i?' done':'')+(idx===S.i?' cur':'');
-        return `<div class="${cls}"><div class="dot${sc.boss?' glitch-target':''}">${idx<S.i?'✓':(sc.boss?'☠':idx+1)}</div><div class="nlabel">${sc.node}</div></div>`;
+        const st = idx<S.i?'done':(idx===S.i?'cur':'locked');
+        const click = idx===S.i ? ` onclick="${sc.boss?'startBossIntro()':'startScenario()'}"` : '';
+        return `<div class="gnode ${st}${sc.boss?' gboss':''}" style="left:${sc.map.x}%;top:${sc.map.y}%"${click} ${idx===S.i?'role="button" tabindex="0"':''}>
+          <div class="dot${sc.boss?' glitch-target':''}">${idx<S.i?'✓':(sc.boss?'☠':(idx===S.i?idx+1:'▒'))}</div>
+          <div class="nlabel">${idx<=S.i?sc.node:'???'}</div>
+        </div>`;
       }).join('')}
     </div>
     ${cliff?`<div class="cliff"><b>ТИМ ЧАСОМ</b>${cliff}</div>`:''}
@@ -469,9 +571,11 @@ function startScenario(){
   render(`
     <div class="eyebrow">ОПЕРАЦІЯ ${S.i+1}${sc.international?' · ПРЕВ\u0027Ю МІЖНАРОДНОГО АДДОНУ':''}${sc.boss?' · ФІНАЛ':''}</div>
     <h2 class="${sc.boss?'glitch-target':''}">${sc.title}</h2>
+    ${sc.art?'<img class="op-art" src="'+sc.art+'" alt="" onerror="this.remove()">':''}
     <div class="card"><p style="line-height:1.6;font-size:15px">${sc.brief}</p></div>
     <button class="btn" onclick="launchAttack()">ВІДКРИТИ СТРІЧКУ</button>`);
   if(sc.boss) initGlitch('.glitch-target');
+  if(sc.boss) showHint('boss_brief', true);
 }
 
 function launchAttack(){
@@ -487,7 +591,9 @@ function launchAttack(){
 function phaseFeed(){
   const sc = SCENARIOS[S.i];
   const feed = S.feed;
-  S._feedOrder = shuffled(feed.length);   // випадкові позиції постів при кожному рендері
+  // FIX 4: у боса пара пост↔стемп несе сюжет (Пн вкид → Вт експерт → Ср медіа) — не шафлити,
+  // щоб хронологія лишилась авторською. В операціях 1-3 шафл лишається.
+  S._feedOrder = sc.boss ? [...Array(feed.length).keys()] : shuffled(feed.length);
   S._feedStamps = feed.map(m=>m.m);       // таймстемпи в авторському (хронологічному) порядку
   S._feedReady = false;
   S._feedGen = (S._feedGen||0) + 1;       // захист від застарілого ланцюжка reveal, якщо екран змінився
@@ -560,6 +666,7 @@ function updateConfirmBtn(){
   if(btn) btn.disabled = !S._feedReady || S.picks.size===0;
 }
 function pickMsg(idx){
+  if(document.querySelector('#feed.locked-feed')) return;   // FIX 5: pointer-events:none не блокує keydown
   if(S.i===0) showHint('first_pick');
   const el = document.querySelector('.msg[data-i="'+idx+'"]');
   if(S.picks.has(idx)){ S.picks.delete(idx); el.classList.remove('sel'); }
@@ -624,7 +731,7 @@ function resolveFeed(){
         hostileFound++;
         gain += subtle?8:5;
         el.classList.add('hit');
-        el.insertAdjacentHTML('afterbegin','<span class="tag '+(subtle?'hs':'h')+'">'+(subtle?'ТОНКИЙ ×2':'НАРАТИВ')+'</span>');
+        el.insertAdjacentHTML('afterbegin','<span class="tag '+(subtle?'hs':'h')+'">'+(subtle?'✓ ТОНКИЙ НАРАТИВ ×2':'✓ НАРАТИВ')+'</span>');
       } else {
         loss += -6;
         if(!subtle) missedExplicit++;   // тонкий пропуск довіру не чіпає, явний коштує
@@ -699,19 +806,29 @@ function showWild(w, fnName){
         <button class="opt" id="wOptB" onclick="wildPick('b')"><b>${w.b.t}</b></button>
       </div>`);
     S._wild = w; S._wildNext = fnName;
-    let left=15;
-    wtimerInt = setInterval(()=>{
-      left--;
-      const el=document.getElementById('wT'), bar=document.getElementById('wBar'), box=document.getElementById('wBox');
-      if(el) el.textContent=left;
-      if(bar) bar.style.width=(left/15*100)+'%';
-      if(left<=5 && box) box.classList.add('hot');
-      if(left<=0){ clearInterval(wtimerInt); wtimerInt=null; wildPick('b',true); }
-    },1000);
+    S._wildDone = false;
+    startWildTimer(15);
   }
   if(S.i===0) showHint('wildcard_first');   // після render(), інакше підказку одразу змиє очищення екрана
 }
+/* FIX 2а: той самий Date.now()-based патерн, що й у startTimer — стійкий до тротлінгу вкладки. */
+function startWildTimer(seconds, total){
+  total = total || seconds;
+  const startedAt = Date.now();
+  S._wildLeft = seconds;
+  const el=document.getElementById('wT'), bar=document.getElementById('wBar'), box=document.getElementById('wBox');
+  wtimerInt = setInterval(()=>{
+    const elapsed = Math.floor((Date.now()-startedAt)/1000);
+    const left = Math.max(0, seconds-elapsed);
+    S._wildLeft = left;
+    if(el) el.textContent=left;
+    if(bar) bar.style.width=(left/total*100)+'%';
+    if(left<=5 && box) box.classList.add('hot');
+    if(left<=0){ clearInterval(wtimerInt); wtimerInt=null; wildPick('b',true); }
+  },1000);
+}
 function wildPick(key, timedOut){
+  S._wildDone = true;
   if(wtimerInt){ clearInterval(wtimerInt); wtimerInt=null; }
   const w=S._wild, o=w[key], other=w[key==='a'?'b':'a'];
   const elA=document.getElementById('wOptA'), elB=document.getElementById('wOptB');
@@ -747,7 +864,7 @@ function narrativesBlockHTML(){
       + '<div class="narr-text full">'+m.t+'</div>'
       + '</div>';
   }).join('');
-  return '<div class="narr-block"><div class="narr-label">РОЗКРИТІ НАРАТИВИ</div><div class="narr-list">'+cards+'</div></div>';
+  return '<div class="narr-block"><div class="narr-label">РОЗКРИТІ НАРАТИВИ · ОПЕРАЦІЯ «'+SCENARIOS[S.i].node+'»</div><div class="narr-list">'+cards+'</div></div>';
 }
 function toggleNarr(el){ el.classList.toggle('narr-open'); }
 
@@ -762,12 +879,14 @@ function phaseTech(){
   }
   S.lastTechPos = order.indexOf(okIdx);
   render(`
+    <div class="ph-analysis">
     <div class="eyebrow">ФАЗА 2 · НАЗВИ ТЕХНІКУ</div>
     ${narrativesBlockHTML()}
     <div class="task">🔬 <div>${sc.techniques.q}</div></div>
     <div class="opts">
       ${order.map(idx=>{const o=sc.techniques.opts[idx];return `
         <button class="opt" data-i="${idx}" onclick="pickTech(${idx})"><b>${o.n}</b>${o.d}</button>`}).join('')}
+    </div>
     </div>`);
   if(S.i===0) showHint('tech_enter');
 }
@@ -794,6 +913,8 @@ function pickTech(idx){
 function phaseAudience(){
   const sc = SCENARIOS[S.i];
   render(`
+    <div class="ph-counter">
+    <div class="phase-banner live">📡 ОБИРАЄШ НАПРЯМОК УДАРУ</div>
     <div class="eyebrow">ФАЗА 3 · НАПРЯМОК</div>
     ${narrativesBlockHTML()}
     <div class="task">📡 <div>${sc.audienceQ}</div></div>
@@ -801,7 +922,8 @@ function phaseAudience(){
       ${sc.audiences.map((a,idx)=>`
         <button class="opt" onclick="pickAudience(${idx})"><b>${a.n}</b>${a.d}</button>`).join('')}
     </div>
-    <p class="lead" style="margin-top:12px;font-size:13px">Обидва напрямки правильні. У повній версії команди ділять їх між собою, у демо обираєш один.</p>`);
+    <p class="lead" style="margin-top:12px;font-size:13px">Обидва напрямки правильні. У повній версії команди ділять їх між собою, у демо обираєш один.</p>
+    </div>`);
 }
 function pickAudience(idx){ S.audience = idx; phaseCounter(); }
 
@@ -814,6 +936,8 @@ function phaseCounter(){
   S._counterDone = false;   // задача 11: чи гравець уже відповів (щоб не відновлювати таймер даремно)
   const order = shuffled(c.opts.length);
   render(`
+    <div class="ph-counter">
+    <div class="phase-banner live">🔴 ЕФІР ЖИВИЙ · ВОРОЖА ВЕРСІЯ ШИРИТЬСЯ</div>
     <div class="eyebrow">ФАЗА ${sc.audiences?'4':'3'} · КОНТРНАРАТИВ</div>
     <div class="timer" id="timerBox">⏱ <span class="t" id="timerT">${t}</span>
       <div class="timer-bar"><i id="timerBar" style="width:100%"></i></div>
@@ -824,6 +948,7 @@ function phaseCounter(){
     <div class="opts">
       ${order.map(idx=>{const o=c.opts[idx];return `
         <button class="opt" data-i="${idx}" onclick="pickCounter(${idx})"><b>${o.n}</b>${o.d}</button>`}).join('')}
+    </div>
     </div>`);
   startTimer(t);
   if(S.i===0) showHint('counter_enter');
@@ -854,7 +979,9 @@ function pickCounter(idx){
     else if(op.best){ el.classList.add('good'); el.insertAdjacentHTML('beforeend','<div class="expl">'+op.e+'</div>'); }
     else el.classList.add('dim');
   });
-  setInfl(o.fx>0?gainAdj(o.fx,true):pen(o.fx), o.fx>0?'Контрнаратив працює':'Хід на користь ІПСО');
+  // PATCH B5: чесний фідбек середньої опції — не видавати частковий ефект за перемогу
+  const label = o.best ? 'Контрнаратив працює' : (o.fx>0 ? 'Частковий ефект' : 'Хід на користь ІПСО');
+  setInfl(o.fx>0?gainAdj(o.fx,true):pen(o.fx), label, (!o.best && o.fx>0) ? false : undefined);
   app.querySelector('.screen').insertAdjacentHTML('beforeend',
     '<button class="btn" onclick="phaseDebrief()">ДАЛІ · РОЗБІР</button>');
 }
@@ -877,6 +1004,7 @@ function countMistakes(d){
   let m = (d.miss||0) + (d.false||0);
   if(!d.techOK) m++;
   if(d.counter!=='best') m++;
+  if(d.timedOut) m++;   // PATCH B1: таймаут = помилка
   return m;
 }
 function gradeOp(){
@@ -898,18 +1026,25 @@ function phaseRank(){
   const recV = d.found+'/'+d.total+(parts.length?' · '+parts.join(', '):' · чисто');
   const techV = d.techOK ? '✓ вірно' : '✗ хибно';
   const cV = d.counter==='best'?'оптимальний':(d.counter==='mid'?'середній':'шкідливий');
-  const spV = d.timeLeft+'с лишок · '+frac+'%';
+  const spV = d.timedOut ? 'час вичерпано · вакуум' : d.timeLeft+'с лишок · '+frac+'%';
+  // колір кожного рядка за власною оцінкою: гуд зелений, середнє жовте (без класу, дефолт), погане червоне
+  const errCount = (d.miss||0)+(d.false||0);
+  const recCls = errCount===0 ? 'good' : (errCount>=2 ? 'bad' : '');
+  const techCls = d.techOK ? 'good' : 'bad';
+  const cCls = d.counter==='best' ? 'good' : (d.counter==='bad' ? 'bad' : '');
+  const spCls = d.timedOut ? 'bad' : '';
   const subs = {A:'бездоганно',B:'одна помилка, тримайся',C:'є над чим працювати'};
+  SFX.play('result');
   render(`
     <div style="padding-top:3vh;text-align:center">
       <div class="eyebrow">ОЦІНКА ОПЕРАЦІЇ · ${sc.node}</div>
       <div class="grade ${gcls}">${g}</div>
       <div class="grade-sub">${subs[g]}</div>
       <div class="card" style="text-align:left">
-        <div class="stat"><span>Розпізнавання</span><span class="v">${recV}</span></div>
-        <div class="stat"><span>Аналіз техніки</span><span class="v">${techV}</span></div>
-        <div class="stat"><span>Контрхід</span><span class="v">${cV}</span></div>
-        <div class="stat"><span>Швидкість</span><span class="v">${spV}</span></div>
+        <div class="stat"><span>Розпізнавання</span><span class="v ${recCls}">${recV}</span></div>
+        <div class="stat"><span>Аналіз техніки</span><span class="v ${techCls}">${techV}</span></div>
+        <div class="stat"><span>Контрхід</span><span class="v ${cCls}">${cV}</span></div>
+        <div class="stat"><span>Швидкість</span><span class="v ${spCls}">${spV}</span></div>
       </div>
       <button class="btn" onclick="nextScenario()">${S.i < SCENARIOS.length-1 ? 'ДО МАПИ ▸' : 'ПІДСУМОК ▸'}</button>
       <button class="btn ghost" onclick="replayOp()">↻ ПЕРЕПРОЙТИ ОПЕРАЦІЮ</button>
@@ -938,6 +1073,7 @@ function nextScenario(){
 
 function finale(){
   document.body.classList.remove('boss-mode');
+  SFX.crossfadeToAmbient();   // M4: бос-музика кросфейдиться назад в амбієнт
   let crisisHtml = '';
   const doCrisis = S.cons >= 2;
   if(doCrisis){
@@ -946,6 +1082,16 @@ function finale(){
       <p>Кілька разів ти обирав «заспокоїти» замість «відповісти». Зовні ставало тихіше, але питання без відповідей нікуди не дівались. Вони консервувались і тепер вибухнули падінням довіри. Гучне мовчання не означає відсутності проблем. Воно означає їхню консервацію. Стійкість −10.</p>
     </div>`;
   }
+  // FIX 3: одразу рендеримо проміжний екран без кнопок — убиває і дабл-клік "ПІДСУМОК",
+  // і клік "ПЕРЕПРОЙТИ", що рендерився б поверх цієї ж затримки
+  if(doCrisis){
+    render(`
+      <div style="padding-top:3vh;text-align:center">
+        <div class="eyebrow">ПІДСУМОК КАМПАНІЇ</div>
+        ${crisisHtml}
+      </div>`);
+  }
+
   const resilient = [...new Set(S.results.filter(r=>r.techOK && r.counterGood).map(r=>r.tech))];
   const vulnerable = [...new Set(S.results.filter(r=>!r.techOK || !r.counterGood).map(r=>r.tech))];
 
@@ -977,8 +1123,9 @@ function finale(){
         <div class="demo-note">
           <h3>ЦЕ ДЕМО-ЗБІРКА ЯДРА</h3>
           <ul>
-            <li>Мутація наративів: слабка відповідь в операції 1 повертається сильнішою у фіналі</li>
-            <li>Перевірка джерела (OSINT): профіль каналу за ціну часу на таймері</li>
+            <li>Прогресія: починаєш простим пресофіцером, прокачуєш персонажа і відкриваєш складніші ролі, нові регіони мапи та режими</li>
+            <li>Вільний вибір операцій на мапі — у демо порядок фіксований заради наскрізного сюжету</li>
+            <li>Мутація наративів: слабка відповідь на початку кампанії повертається сильнішою у фіналі</li>
             <li>Прикладне ворогознавство: дерево знань про техніки, що відкриває нові контрходи</li>
             <li>Командний режим: два гравці, одна ситуація, порівняння рішень</li>
             <li>Аналітика для тренера і регіональні профілі стійкості</li>

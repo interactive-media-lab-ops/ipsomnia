@@ -4,9 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Іпсомнія — Інфопротистояння · v0.3</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
+@font-face{font-family:'Press Start 2P';font-style:normal;font-weight:400;font-display:swap;src:url('assets/fonts/press-start-2p.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('assets/fonts/inter-400.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:500;font-display:swap;src:url('assets/fonts/inter-500.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url('assets/fonts/inter-600.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:500;font-display:swap;src:url('assets/fonts/jetbrains-mono-500.woff2') format('woff2')}
 :root{
   --bg:#0A0F1A; --panel:#111A2B; --panel2:#172236; --line:#26364F;
   --text:#E9EFF8; --muted:#8DA0BC;
@@ -82,6 +85,7 @@ h1{font-family:'Press Start 2P';font-size:clamp(22px,6vw,34px);line-height:1.25;
 h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;margin-bottom:12px}
 .lead{color:var(--muted);font-size:15px;line-height:1.6;margin-bottom:8px}
 .card{background:var(--panel);border:2px solid var(--line);padding:18px;margin-bottom:12px}
+.op-art{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border:2px solid var(--line);image-rendering:pixelated;margin-bottom:12px}
 .btn{display:block;width:100%;text-align:center;font-family:'Press Start 2P';font-size:11px;
   padding:16px 12px;border:2px solid #000;cursor:pointer;line-height:1.5;
   background:var(--gold);color:#12100A;box-shadow:0 4px 0 #000;transition:transform .08s,box-shadow .08s;margin-top:16px}
@@ -111,7 +115,7 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
 /* ===== Мапа кампанії ===== */
 .map{display:flex;align-items:flex-start;justify-content:space-between;margin:26px 0 8px;position:relative}
 .map::before{content:'';position:absolute;top:17px;left:8%;right:8%;height:3px;background:var(--line);z-index:0}
-.node{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:8px;width:19%}
+.node{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:8px;width:15%}
 .node .dot{width:34px;height:34px;border:3px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:'Press Start 2P';font-size:11px;color:var(--muted)}
 .node.done .dot{background:var(--gold);border-color:var(--gold);color:#12100A}
 .node.cur .dot{border-color:var(--gold);color:var(--gold);animation:blink 1.1s steps(2) infinite}
@@ -122,6 +126,20 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
 @keyframes blink{50%{opacity:.35}}
 .cliff{background:var(--panel2);border:2px solid var(--line);border-left:4px solid var(--purple);padding:12px 14px;font-size:13px;color:#C9B3D6;line-height:1.6;margin-top:16px}
 .cliff b{font-family:'JetBrains Mono';font-size:10px;color:var(--purple);display:block;margin-bottom:5px;letter-spacing:.12em}
+.map-geo{position:relative;width:100%;aspect-ratio:16/10;background:var(--panel);border:2px solid var(--line);margin:20px 0 8px;overflow:hidden}
+.map-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;image-rendering:pixelated;opacity:.85}
+.gnode{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:5px;z-index:2}
+.gnode .dot{width:32px;height:32px;border:3px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:'Press Start 2P';font-size:10px;color:var(--muted);box-shadow:0 0 0 2px rgba(0,0,0,.5)}
+.gnode .nlabel{font-family:'JetBrains Mono';font-size:9px;color:var(--text);background:rgba(10,15,26,.8);padding:2px 5px;white-space:nowrap}
+.gnode.done .dot{background:var(--gold);border-color:var(--gold);color:#12100A}
+.gnode.cur{cursor:pointer}
+.gnode.cur .dot{border-color:var(--gold);color:var(--gold);animation:blink 1.1s steps(2) infinite}
+.gnode.cur:hover .dot{background:var(--gold-dim)}
+.gnode.locked{opacity:.45}
+.gnode.locked .nlabel{color:var(--muted)}
+.gboss .dot{border-color:var(--hostile);color:var(--hostile)}
+.gboss.cur .dot{background:var(--hostile-dim)}
+.gboss .nlabel{color:var(--hostile)}
 
 /* ===== Стрічка ===== */
 .feed{display:flex;flex-direction:column;gap:10px}
@@ -136,13 +154,13 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
   background:var(--panel2);border:1px solid var(--gold-dim);padding:3px 7px;margin-bottom:8px;letter-spacing:.03em}
 .msg-views{font-family:'JetBrains Mono';font-size:10px;color:var(--muted);margin-top:8px;text-align:right}
 .msg.sel{border-color:var(--gold)}
-.msg.hit{border-color:var(--hostile)}
+.msg.hit{border-color:var(--ok)}
 .msg.missed{border-color:var(--hostile);border-style:dashed}
-.msg.safe{border-color:var(--ok)}
+.msg.safe{border-color:var(--hostile)}
 .msg .tag{position:absolute;top:-11px;right:10px;font-family:'Press Start 2P';font-size:7px;padding:4px 7px}
 .msg .tag.h{background:var(--hostile);color:#fff}
 .msg .tag.hs{background:var(--purple);color:#fff}
-.msg .tag.n{background:#1F4A36;color:var(--ok)}
+.msg .tag.n{background:#5A1D22;color:#fff}
 .locked-feed{pointer-events:none}
 
 /* ===== Опції ===== */
@@ -150,6 +168,24 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
 .opt{background:var(--panel);border:2px solid var(--line);padding:14px;cursor:pointer;
   text-align:left;color:var(--text);font-family:'Inter';font-size:14px;line-height:1.5;transition:border-color .15s;width:100%}
 .opt:hover{border-color:#3A4E73}
+.ph-analysis .eyebrow{color:var(--purple)}
+.ph-analysis .task{border-left-color:var(--purple);background:#151226}
+.ph-analysis .opt{border-left:4px solid #2A2340}
+.ph-analysis .opt:hover{border-color:var(--purple)}
+.ph-counter .task{border-left-color:var(--hostile)}
+.ph-counter .opt:hover{border-color:var(--hostile)}
+.phase-banner{font-family:'Press Start 2P';font-size:9px;padding:10px 12px;margin-bottom:12px;line-height:1.6;letter-spacing:.04em}
+.phase-banner.live{background:#231216;border:2px solid #5A1D22;color:var(--hostile)}
+/* Фаза 2: аналітичне досьє — сітка 2 колонки, нумеровані гіпотези */
+.ph-analysis .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;counter-reset:hyp}
+.ph-analysis .opt{counter-increment:hyp;border-top:3px solid var(--purple);background:#131022}
+.ph-analysis .opt b::before{content:"ГІПОТЕЗА 0" counter(hyp);display:block;font-family:'Press Start 2P';font-size:7px;color:var(--purple);margin-bottom:6px;letter-spacing:.06em}
+.ph-analysis .opt:hover{border-color:var(--purple)}
+@media (max-width:560px){.ph-analysis .opts{grid-template-columns:1fr}}
+/* Фаза 3: гарячий ефір — вертикаль, червона шкала зліва */
+.ph-counter .opt{border-left:4px solid #3A1418}
+.ph-counter .opt:hover{border-color:var(--hostile)}
+.ph-counter .opt b::before{content:"▸ ХІД: ";color:var(--hostile)}
 .opt b{display:block;font-size:13px;margin-bottom:4px;color:#B8C8E2}
 .opt.good{border-color:var(--ok);background:#0F231B}
 .opt.bad{border-color:var(--hostile);background:#231216}
@@ -179,6 +215,8 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
 .stat{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
 .stat:last-child{border-bottom:none}
 .stat .v{font-family:'JetBrains Mono';color:var(--gold)}
+.stat .v.good{color:var(--ok)}
+.stat .v.bad{color:var(--hostile)}
 .vuln-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .chip{font-family:'Press Start 2P';font-size:8px;padding:7px 10px;border:2px solid;line-height:1.4}
 .chip.ok{color:var(--ok);border-color:#1F4A36;background:#0F231B}
@@ -202,7 +240,7 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
 .avatar-ini{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Press Start 2P';color:#0A0F1A;background:var(--acol,var(--muted))}
 .avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
 .av-lg{width:56px;height:56px}.av-lg .avatar-ini{font-size:13px}
-.av-sm{width:22px;height:22px}.av-sm .avatar-ini{font-size:8px}
+.av-sm{width:36px;height:36px}.av-sm .avatar-ini{font-size:11px}
 .role-card{display:flex;gap:14px;align-items:center}
 .role-text{flex:1;min-width:0}
 .hud-left{display:inline-flex;align-items:center;gap:7px}
@@ -260,6 +298,9 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
 .dlg-text{font-family:'Inter';font-size:16px;line-height:1.6;color:var(--text);min-height:3.2em;padding-right:20px}
 .dlg-next{position:absolute;right:14px;bottom:10px;color:var(--gold);font-size:14px;opacity:0;transition:opacity .2s}
 .dlg-next.show{opacity:1;animation:blink 1s steps(2) infinite}
+body.boss-mode .instr-portrait{border-color:var(--hostile)}
+body.boss-mode .dlg-name{color:var(--hostile)}
+body.boss-mode .dialogue-box{border-left-color:var(--hostile)}
 
 /* ===== Жива стрічка (задача 8.2) ===== */
 .msg.typing{display:flex;align-items:center;min-height:20px;padding:14px}
@@ -308,7 +349,6 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
 }
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
-  .glitch-active{animation:glitchShift 70ms steps(2) infinite!important}
 }
 
 /* ===== Вбудований туторіал (задача 11): підказки Інструктора =====
@@ -320,7 +360,7 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
   background:var(--panel);border:2px solid var(--gold);
   padding:12px 14px;cursor:pointer;
   transform:translateX(130%);transition:transform .3s ease;}
-.hint-panel.show{transform:translateX(0)}
+.hint-panel.show{transform:none}
 .hint-panel-top{display:flex;gap:10px;align-items:flex-start}
 .hint-portrait{position:relative;width:36px;height:36px;flex:none;border:2px solid var(--gold);background:var(--panel2);overflow:hidden}
 .hint-silhouette{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
@@ -331,6 +371,10 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
 .hint-name{font-family:'Press Start 2P';font-size:8px;color:var(--gold);margin-bottom:4px;letter-spacing:.05em}
 .hint-text{font-size:13px;line-height:1.5;color:var(--text)}
 .hint-ok{align-self:flex-end;font-family:'Press Start 2P';font-size:9px;background:var(--gold);color:#12100A;border:2px solid #000;padding:8px 12px;cursor:pointer}
+.hint-panel{max-height:60vh;overflow-y:auto}
+@media (max-width:560px){
+  .hint-panel{top:auto!important;bottom:12px;left:12px;right:12px;width:auto;transform:translateY(130%)}
+}
 </style>
 </head>
 <body>
