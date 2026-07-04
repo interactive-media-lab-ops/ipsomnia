@@ -320,7 +320,7 @@ function stopBossGlitch(){
 function modeSelect(){
   document.getElementById('topbar').style.display='none';
   render(`
-    <div style="padding-top:7vh">
+    <div class="title-screen" style="padding-top:7vh">
       <div class="eyebrow">ПЛАТФОРМА ТРЕНУВАННЯ ІНФОСТІЙКОСТІ</div>
       <h1><span style="color:var(--gold)">ІПСО</span>МНІЯ</h1>
       <p class="lead">Одне ядро зі спільною моделлю аудиторії та наративів. Режими працюють як контент-паки поверх нього.</p>
@@ -602,7 +602,7 @@ function phaseFeed(){
     <div class="eyebrow">ФАЗА 1 · РОЗПІЗНАЙ</div>
     ${sc.boss?'<div class="attack-banner glitch-target">⚠ ПІДВИЩЕНА АКТИВНІСТЬ ІПСО</div>':''}
     <div class="task">🎯 <div>Познач <b>усі ворожі наративи</b> й підтверди. Скільки їх, не підказуємо. Хибна тривога теж коштує: бачити ІПСО там, де його нема, це програш іншого типу.</div></div>
-    <div class="osint-bar">🔍 ПЕРЕВІРКА ДЖЕРЕЛА · лишилось <span id="osintLeft">${S.osintLeft}</span> / ${S.osintTotal}</div>
+    <div class="osint-bar">🛰 <b>OSINT</b> · ПЕРЕВІРКА ДЖЕРЕЛА · лишилось <span id="osintLeft">${S.osintLeft}</span> / ${S.osintTotal}</div>
     <div class="feed" id="feed"></div>
     <button class="btn" id="confirmBtn" disabled onclick="resolveFeed()">ПІДТВЕРДИТИ ВИБІР</button>`);
   if(sc.boss) initGlitch('.glitch-target');
@@ -611,7 +611,7 @@ function phaseFeed(){
 }
 function msgHTML(idx, m, stamp){
   return '<div class="msg" tabindex="0" role="button" data-i="'+idx+'" data-views="'+parseViews(m.v)+'" data-hostile="'+(m.h?1:0)+'" onclick="pickMsg('+idx+')" onkeydown="if(event.key===\'Enter\')pickMsg('+idx+')">'
-    + '<div class="msg-head"><span class="msg-author">'+m.a+'</span><span class="msg-tools"><span class="msg-meta">'+stamp+'</span><button class="osint-btn" data-i="'+idx+'" title="Перевірити джерело" onclick="event.stopPropagation();osintOpen('+idx+')" onkeydown="event.stopPropagation()">🔍</button></span></div>'
+    + '<div class="msg-head"><span class="msg-author">'+m.a+'</span><span class="msg-tools"><span class="msg-meta">'+stamp+'</span><button class="osint-btn" data-i="'+idx+'" title="OSINT: перевірити джерело" onclick="event.stopPropagation();osintOpen('+idx+')" onkeydown="event.stopPropagation()">🔍</button></span></div>'
     + (m.flagged ? '<div class="msg-flag">⚠ МОДЕРАЦІЯ ВЖЕ ПОЗНАЧИЛА: ФЕЙК</div>' : '')
     + '<div class="msg-text">'+m.t+'</div>'
     + '<div class="msg-views">👁 <span class="views-n">'+m.v+'</span></div>'
@@ -679,7 +679,7 @@ function osintOpen(idx){
   const m = S.feed[idx];
   if(!m || !m.osint) return;
   if(!S.osintDone.has(idx)){                        // повторний перегляд перевіреного безкоштовний
-    if(S.osintLeft<=0){ toast('Перевірки вичерпано','minus'); return; }
+    if(S.osintLeft<=0){ toast('OSINT вичерпано','minus'); return; }
     S.osintLeft--; S.osintDone.add(idx);
     const el=document.getElementById('osintLeft'); if(el) el.textContent=S.osintLeft;
     const b=document.querySelector('.osint-btn[data-i="'+idx+'"]'); if(b) b.classList.add('used');
@@ -697,7 +697,7 @@ function showOsint(m){
     + '<div class="osint-rowbody"><b>'+label+'</b><span>'+valueHtml+'</span></div></div>';
   wrap.innerHTML =
     '<div class="osint-card">'
-    + '<div class="osint-h"><span>🔍 ПРОФІЛЬ КАНАЛУ</span><button class="osint-x" onclick="this.closest(\'.osint-modal\').remove()">✕</button></div>'
+    + '<div class="osint-h"><span>🛰 OSINT-ДОСЬЄ КАНАЛУ</span><button class="osint-x" onclick="this.closest(\'.osint-modal\').remove()">✕</button></div>'
     + '<div class="osint-name">'+m.a+'</div>'
     + row('📅','СТВОРЕНО', o.created)
     + row('📊','АКТИВНІСТЬ', o.postsMonth)
@@ -1106,6 +1106,7 @@ function finale(){
         <div class="eyebrow">ПІДСУМОК КАМПАНІЇ · ${S.role.n}</div>
         <div class="rank ${cls}">${rank}</div>
         <p class="lead" style="max-width:440px;margin:0 auto 20px">${note}</p>
+        <img class="finale-art" src="assets/finale_art.png" alt="" onerror="this.remove()">
         ${crisisHtml}
         <div class="card" style="text-align:left">
           <div class="stat"><span>Фінальна стійкість</span><span class="v">${S.infl} / 100</span></div>
