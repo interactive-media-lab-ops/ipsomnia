@@ -196,7 +196,8 @@ function setInfl(delta,label,sfx){
   m.style.left = 'calc('+edge+'% - 3px)';
   f.style.clipPath = 'inset(0 '+S.infl+'% 0 0)';
   n.textContent = S.infl;
-  n.style.left = Math.max(5, Math.min(95, edge))+'%';
+  n.style.left = Math.max(6, Math.min(94, edge))+'%';
+  document.querySelector('.infl').classList.toggle('critical', S.infl<=12);
   if(delta!==0){
     toast((delta>0?'+':'')+delta+' '+(label||''), delta>0);
     if(sfx!==false) SFX.play(sfx || (delta>0?'gain':'loss'));
@@ -1027,6 +1028,18 @@ function gradeOp(){
   return 'C';
 }
 function phaseRank(){
+  if(S.infl <= 8){
+    SFX.play('loss');
+    render(`
+      <div style="padding-top:6vh;text-align:center">
+        <div class="eyebrow" style="color:var(--hostile)">ОПЕРАЦІЮ ПРОВАЛЕНО</div>
+        <div class="rank low">НАРАТИВ ЗАКРІПИВСЯ</div>
+        <p class="lead" style="max-width:440px;margin:0 auto 20px">Вплив ІПСО дійшов критичної межі: ворожа версія закріпилась і стала правдою за замовчуванням для твоєї аудиторії. Витіснити наратив, що вже вкорінився, у рази дорожче, ніж не пустити його. У тренажері є розкіш, якої нема в реальності: розберись, які рішення віддали поле, і зайди в операцію ще раз.</p>
+        <button class="btn" onclick="replayOp()">↻ ПЕРЕПРОЙТИ ОПЕРАЦІЮ</button>
+        <button class="btn ghost" onclick="restart()">ПОЧАТИ КАМПАНІЮ ЗАНОВО</button>
+      </div>`);
+    return;
+  }
   const sc = SCENARIOS[S.i], d = S._op || {};
   const g = gradeOp();
   // задача 6: якщо операцію 1 закрито погано (ранг C або нечисте розпізнавання) — вмикаємо мутацію у фіналі
