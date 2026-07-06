@@ -6,6 +6,9 @@ const S = { role:null, i:0, infl:50, rep:100, repMin:100, streak:0, correct:0, t
             picks:new Set(), audience:null, cons:0, results:[], badges:[], usedWild:[], timerCut:0, lastTechPos:-1,
             feed:[], osintLeft:2, osintTotal:2, osintDone:new Set(), op1Bad:false };
 let timerInt=null, wtimerInt=null;
+// Прихований дев-стрибок на операцію через URL (?op=N), без жодного UI.
+let pendingOp = parseInt(new URLSearchParams(location.search).get('op'))||0;
+if(pendingOp<1||pendingOp>SCENARIOS.length) pendingOp=0;
 
 /* =====================================================================
    ЗВУК (задача 8). Файлів може не бути — .play() тоді відхиляється
@@ -30,8 +33,8 @@ const SFX = (function(){
     const start = el.volume, t0 = Date.now();
     el._fadeInt = setInterval(()=>{
       const p = Math.min(1, (Date.now()-t0)/ms);
-      el.volume = start + (target-start)*p;
-      if(p>=1){ clearInterval(el._fadeInt); el._fadeInt=null; }
+      try{ el.volume = start + (target-start)*p; }catch(e){}
+      if(p>=1){ clearInterval(el._fadeInt); el._fadeInt=null; if(target===0){ try{ el.pause(); }catch(e){} } }
     }, 50);
   }
   function unlock(){                          // перший клік користувача знімає блокування автоплею
@@ -85,9 +88,13 @@ const SFX = (function(){
     // M2: unmute мав лишати трек на гучності 0 — дофейдити активний трек назад до робочого рівня
     if(!v && ambientWanted){
       const active = document.body.classList.contains('boss-mode') ? bossAmbient : ambient;
+      if(unlocked && active.paused) active.play().catch(()=>{});
       fadeTo(active, 0.34, 900);
     }
-    if(!v && introWanted) fadeTo(introMusic, 0.34, 900);
+    if(!v && introWanted){
+      if(unlocked && introMusic.paused) introMusic.play().catch(()=>{});
+      fadeTo(introMusic, 0.34, 900);
+    }
   }
   function toggle(){ setMuted(!muted); return muted; }
   return { play, startAmbient, startIntroMusic, crossfadeToBoss, crossfadeToAmbient, crossfadeIntroToAmbient, stopAmbient, toggle, unlock, isMuted:()=>muted };
@@ -127,13 +134,13 @@ function showHint(id, force){
   if(!force && tutorialDone) return;
   const t = TUTORIAL.find(x=>x.id===id); if(!t) return;
   hintsShown.add(id);
-  hintQueue.push({id, text:t.text});
+  hintQueue.push({id, text:t.text, sel:t.sel});
   if(!hintBusy) advanceHintQueue();
 }
 function advanceHintQueue(){
   if(!hintQueue.length){ hintBusy=false; return; }
   hintBusy = true;
-  const {id, text} = hintQueue.shift();
+  const {id, text, sel} = hintQueue.shift();
   // у фазі контрнаративу перша підказка морозить таймер, щоб не з'їдати час гравця.
   // Заморозка стається до першого тіку, тому без підпису здається, що таймер "не запустився" —
   // явно показуємо паузу, щоб це читалось як стан, а не поломка.
@@ -141,7 +148,7 @@ function advanceHintQueue(){
   const freezeWild = (id==='wildcard_first' && wtimerInt);   // FIX 2б: той самий патерн заморозки для choice-wildcard
   if(freeze){
     clearInterval(timerInt); timerInt=null;
-    const note = document.querySelector('.timer .note'); if(note) note.textContent = '⏸ пауза: підказка Інструктора';
+    const note = document.querySelector('.timer .note'); if(note) note.textContent = '⏸ пауза: підказка Командира';
   }
   if(freezeWild){ clearInterval(wtimerInt); wtimerInt=null; }
   const wrap = document.createElement('div');
@@ -149,7 +156,7 @@ function advanceHintQueue(){
   wrap.innerHTML =
       '<div class="hint-panel-top">'
     +   '<div class="hint-portrait"><div class="hint-silhouette"></div><img src="assets/instructor_1.png" alt="" onerror="this.remove()"></div>'
-    +   '<div class="hint-body"><div class="hint-name">ІНСТРУКТОР</div><div class="hint-text">'+text+'</div></div>'
+    +   '<div class="hint-body"><div class="hint-name">КОМАНДИР</div><div class="hint-text">'+text+'</div></div>'
     + '</div>'
     + '<button class="hint-ok">OK</button>';
   wrap.addEventListener('click', ()=>{
@@ -157,6 +164,7 @@ function advanceHintQueue(){
     wrap.classList.remove('show');
     setTimeout(()=>{
       wrap.remove();
+      if(focusEl) focusEl.classList.remove('hint-focus');
       // відновити таймер лише якщо гравець ще не відповів (не встиг натиснути опцію)
       if(freeze && !S._counterDone && S._timeLeft>0 && document.getElementById('timerT')){
         const note = document.querySelector('.timer .note'); if(note) note.textContent = 'вакуум працює на ворога';
@@ -169,6 +177,8 @@ function advanceHintQueue(){
     }, 250);
   });
   document.body.appendChild(wrap);
+  let focusEl = sel ? document.querySelector(sel) : null;
+  if(focusEl) focusEl.classList.add('hint-focus');
   // верхній правий кут, нижче HUD: top = фактичний низ топбару (якщо він видимий).
   // На мобілі (≤560px) inline-top не виставляється — позицію повністю тримає CSS bottom.
   if(window.innerWidth > 560){
@@ -182,9 +192,11 @@ function advanceHintQueue(){
 function setInfl(delta,label,sfx){
   S.infl = clamp(S.infl + delta);
   const m = document.getElementById('inflMarker'), f = document.getElementById('inflFill'), n = document.getElementById('inflNum');
-  m.style.left = 'calc('+S.infl+'% - 3px)';
+  const edge = 100 - S.infl;   // позиція лінії фронту: червоне зліва займає (100-infl)%
+  m.style.left = 'calc('+edge+'% - 3px)';
   f.style.clipPath = 'inset(0 '+S.infl+'% 0 0)';
   n.textContent = S.infl;
+  n.style.left = Math.max(5, Math.min(95, edge))+'%';
   if(delta!==0){
     toast((delta>0?'+':'')+delta+' '+(label||''), delta>0);
     if(sfx!==false) SFX.play(sfx || (delta>0?'gain':'loss'));
@@ -236,7 +248,7 @@ function processToastQueue(){
   }, 1700);
 }
 function prog(){ document.getElementById('prog').textContent = (S.i+1)+'/'+SCENARIOS.length; }
-function render(html){ stopAllTimers(); stopBossGlitch(); document.querySelectorAll('.osint-modal').forEach(e=>e.remove()); document.querySelectorAll('.hint-panel').forEach(e=>e.remove()); hintQueue=[]; hintBusy=false; toastQueue=[]; app.innerHTML = '<div class="screen">'+html+'</div>'; window.scrollTo({top:0}); }
+function render(html){ stopAllTimers(); stopBossGlitch(); document.querySelectorAll('.osint-modal').forEach(e=>e.remove()); document.querySelectorAll('.hint-panel').forEach(e=>e.remove()); document.querySelectorAll('.hint-focus').forEach(e=>e.classList.remove('hint-focus')); hintQueue=[]; hintBusy=false; toastQueue=[]; app.innerHTML = '<div class="screen">'+html+'</div>'; window.scrollTo({top:0}); }
 function shuffled(n){ const a=[...Array(n).keys()]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function stopAllTimers(){ if(timerInt){clearInterval(timerInt);timerInt=null;} if(wtimerInt){clearInterval(wtimerInt);wtimerInt=null;} if(S._viewsInt){clearInterval(S._viewsInt);S._viewsInt=null;} }
 
@@ -325,7 +337,7 @@ function modeSelect(){
       <h1><span style="color:var(--gold)">ІПСО</span>МНІЯ</h1>
       <p class="lead">Одне ядро зі спільною моделлю аудиторії та наративів. Режими працюють як контент-паки поверх нього.</p>
       <div class="modes">
-        <button class="mode" onclick="startIntro()">
+        <button class="mode hero" onclick="startIntro()">
           <span class="mode-badge live px">ГРАТИ</span>
           <div class="mode-name">ІНФОСТІЙКІСТЬ</div>
           <div class="mode-desc">Базовий режим для будь-кого. Розпізнавання ворожих наративів, аналіз технік, контрнаративи. Кампанія з 6 операцій.</div>
@@ -416,7 +428,7 @@ function clearIntroTimers(){
    програти і що робити після (roleSelect чи запуск операції боса). */
 let activeDialogue = DIALOGUE;
 let dialogueDoneCb = roleSelect;
-let activePortrait = INSTRUCTOR.frames, activeSpeaker = 'ІНСТРУКТОР';
+let activePortrait = INSTRUCTOR.frames, activeSpeaker = 'КОМАНДИР';
 function renderDialogueScreen(){
   preloadFrames(activePortrait);
   instrImgOk = true;
@@ -439,7 +451,7 @@ function startIntro(){
   SFX.startIntroMusic();   // окремий трек для катсцени, стартує разом із нею, не чекає вибору ролі
   activeDialogue = DIALOGUE;
   dialogueDoneCb = ()=>{ introSeen=true; roleSelect(); };
-  activePortrait = INSTRUCTOR.frames; activeSpeaker = 'ІНСТРУКТОР';
+  activePortrait = INSTRUCTOR.frames; activeSpeaker = 'КОМАНДИР';
   renderDialogueScreen();
 }
 /* Тригер: клік «ФІНАЛЬНА ОПЕРАЦІЯ» на мапі, перед запуском операції боса. */
@@ -521,6 +533,7 @@ function pickRole(i){
   document.getElementById('topbar').style.display='block';
   hud();
   SFX.crossfadeIntroToAmbient();   // перехід на мапу кампанії: кросфейд intro.ogg → ambient.ogg
+  if(pendingOp){ S.i = pendingOp-1; pendingOp = 0; }
   campaignMap();
 }
 
@@ -638,8 +651,8 @@ function revealFeed(gen, i){
     typEl.remove();
     const idx = order[i], m = S.feed[idx];
     feedEl.insertAdjacentHTML('beforeend', msgHTML(idx, m, stamps[i]));
-    setTimeout(()=>revealFeed(gen, i+1), 300 + Math.random()*200);
-  }, 420);
+    setTimeout(()=>revealFeed(gen, i+1), 160 + Math.random()*140);
+  }, 260);
 }
 function parseViews(str){
   const m = /^([\d.]+)\s*K$/i.exec(String(str).trim());
@@ -864,7 +877,7 @@ function narrativesBlockHTML(){
       + '<div class="narr-text full">'+m.t+'</div>'
       + '</div>';
   }).join('');
-  return '<div class="narr-block"><div class="narr-label">РОЗКРИТІ НАРАТИВИ · ОПЕРАЦІЯ «'+SCENARIOS[S.i].node+'»</div><div class="narr-list">'+cards+'</div></div>';
+  return '<div class="narr-block"><div class="narr-label">РОЗКРИТІ НАРАТИВИ · ДОВІДКА · ОПЕРАЦІЯ «'+SCENARIOS[S.i].node.replace('☠ ','')+'»</div><div class="narr-list">'+cards+'</div></div>';
 }
 function toggleNarr(el){ el.classList.toggle('narr-open'); }
 
@@ -913,16 +926,16 @@ function pickTech(idx){
 function phaseAudience(){
   const sc = SCENARIOS[S.i];
   render(`
-    <div class="ph-counter">
+    <div class="ph-counter ph-aud">
     <div class="phase-banner live">📡 ОБИРАЄШ НАПРЯМОК УДАРУ</div>
     <div class="eyebrow">ФАЗА 3 · НАПРЯМОК</div>
-    ${narrativesBlockHTML()}
     <div class="task">📡 <div>${sc.audienceQ}</div></div>
     <div class="opts">
       ${sc.audiences.map((a,idx)=>`
         <button class="opt" onclick="pickAudience(${idx})"><b>${a.n}</b>${a.d}</button>`).join('')}
     </div>
     <p class="lead" style="margin-top:12px;font-size:13px">Обидва напрямки правильні. У повній версії команди ділять їх між собою, у демо обираєш один.</p>
+    ${narrativesBlockHTML()}
     </div>`);
 }
 function pickAudience(idx){ S.audience = idx; phaseCounter(); }
@@ -943,12 +956,12 @@ function phaseCounter(){
       <div class="timer-bar"><i id="timerBar" style="width:100%"></i></div>
       <span class="note">вакуум працює на ворога</span>
     </div>
-    ${narrativesBlockHTML()}
     <div class="task">⚔️ <div>${c.q}</div></div>
     <div class="opts">
       ${order.map(idx=>{const o=c.opts[idx];return `
         <button class="opt" data-i="${idx}" onclick="pickCounter(${idx})"><b>${o.n}</b>${o.d}</button>`}).join('')}
     </div>
+    ${narrativesBlockHTML()}
     </div>`);
   startTimer(t);
   if(S.i===0) showHint('counter_enter');
@@ -1122,14 +1135,15 @@ function finale(){
           <p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5">У повній версії профіль накопичується між сесіями і дає тренеру картину по підрозділу: які техніки пробивають людей найчастіше.</p>
         </div>
         <div class="demo-note">
-          <h3>ЦЕ ДЕМО-ЗБІРКА ЯДРА</h3>
+          <h3>ТИ ЩОЙНО ПРОЙШОВ ДЕМО-ЗБІРКУ ЯДРА</h3>
+          <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:12px">Кампанія з 6 операцій, OSINT, аналіз технік і контрходи — все, що ти бачив, уже працює. Нижче — те, чого в демо ще нема.</p>
+          <h3>ПОВНА ВЕРСІЯ ДОДАСТЬ</h3>
           <ul>
-            <li>Прогресія: починаєш простим пресофіцером, прокачуєш персонажа і відкриваєш складніші ролі, нові регіони мапи та режими</li>
+            <li>Прогресію: починаєш простим пресофіцером, прокачуєш персонажа, відкриваєш складніші ролі й нові регіони мапи</li>
             <li>Вільний вибір операцій на мапі — у демо порядок фіксований заради наскрізного сюжету</li>
-            <li>Мутація наративів: слабка відповідь на початку кампанії повертається сильнішою у фіналі</li>
             <li>Прикладне ворогознавство: дерево знань про техніки, що відкриває нові контрходи</li>
             <li>Командний режим: два гравці, одна ситуація, порівняння рішень</li>
-            <li>Аналітика для тренера і регіональні профілі стійкості</li>
+            <li>Аналітику для тренера і регіональні профілі стійкості</li>
           </ul>
           <h3 style="margin-top:14px">АДДОНИ В РОЗРОБЦІ</h3>
           <ul>
