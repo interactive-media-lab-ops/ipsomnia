@@ -2,6 +2,13 @@
    ДВИГУН
    ===================================================================== */
 const app = document.getElementById('app');
+/* Фіче-флаги / конфіг */
+const ENABLE_CREATOR = false;   // true → показати вхід у режим Червона команда (кріейтор). Loader ?pack= працює завжди.
+const FEEDBACK_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeDB4fjDf7NMWksBCaX9ReWMuy1Y6vgP0ns7f4aOEskyrynEA/viewform?usp=header';
+/* Кнопка-лінк на фідбек (фінальний CTA). Завжди нова вкладка — стан гри не переривається. */
+function feedbackLink(label){
+  return '<a href="'+FEEDBACK_URL+'" target="_blank" rel="noopener" class="btn" style="text-decoration:none">'+label+'</a>';
+}
 const S = { role:null, i:0, infl:50, rep:100, repMin:100, streak:0, correct:0, total:0,
             picks:new Set(), audience:null, cons:0, results:[], badges:[], usedWild:[], timerCut:0, lastTechPos:-1,
             feed:[], osintLeft:2, osintTotal:2, osintDone:new Set(), op1Bad:false };
@@ -251,7 +258,7 @@ function processToastQueue(){
 function prog(){ document.getElementById('prog').textContent = (S.i+1)+'/'+SCENARIOS.length; }
 function render(html){ stopAllTimers(); stopBossGlitch(); document.querySelectorAll('.osint-modal').forEach(e=>e.remove()); document.querySelectorAll('.hint-panel').forEach(e=>e.remove()); document.querySelectorAll('.hint-focus').forEach(e=>e.classList.remove('hint-focus')); hintQueue=[]; hintBusy=false; toastQueue=[]; app.innerHTML = '<div class="screen">'+html+'</div>'; window.scrollTo({top:0}); }
 function shuffled(n){ const a=[...Array(n).keys()]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
-function stopAllTimers(){ if(timerInt){clearInterval(timerInt);timerInt=null;} if(wtimerInt){clearInterval(wtimerInt);wtimerInt=null;} if(S._viewsInt){clearInterval(S._viewsInt);S._viewsInt=null;} }
+function stopAllTimers(){ if(timerInt){clearInterval(timerInt);timerInt=null;} if(wtimerInt){clearInterval(wtimerInt);wtimerInt=null;} if(S._viewsInt){clearInterval(S._viewsInt);S._viewsInt=null;} document.body.classList.remove('timer-active'); }
 
 /* Задача 12, блок А: таймер рахує залишок від реального часу (Date.now()),
    а не декрементом на кожне спрацювання setInterval. У фоновій/неактивній
@@ -259,6 +266,7 @@ function stopAllTimers(){ if(timerInt){clearInterval(timerInt);timerInt=null;} i
    тіків замість секунд, і таймер відставав або зависав. Тепер, скільки б
    тіків не пропустив тротлінг, наступний виклик доганяє реальний залишок. */
 function startTimer(seconds, total){
+  document.body.classList.add('timer-active');   // притлумлює фідбек-кнопку на час активної фази
   total = total || seconds;   // total лишається сталим при відновленні після заморозки підказкою
   const startedAt = Date.now();
   let lastLeft = seconds;
@@ -353,11 +361,17 @@ function modeSelect(){
           <div class="mode-name">МІЖНАРОДНИЙ</div>
           <div class="mode-desc">Дипломатичні та медійні сценарії для скептичних аудиторій. Прев'ю вже всередині базового режиму, операція 4.</div>
         </div>
+        ${ENABLE_CREATOR ? `
+        <button class="mode" onclick="location.href='creator.html'">
+          <span class="mode-badge live px">СТВОРИТИ</span>
+          <div class="mode-name">ЧЕРВОНА КОМАНДА</div>
+          <div class="mode-desc">Зворотний режим: сконструюй ІПСО сам. Ціль, емоція, техніка, канал. Найшвидший шлях зрозуміти захист, це раз побувати атакою.</div>
+        </button>` : `
         <div class="mode locked" aria-disabled="true">
           <span class="mode-badge lock px">СКОРО</span>
           <div class="mode-name">ЧЕРВОНА КОМАНДА</div>
           <div class="mode-desc">Зворотний режим: сконструюй ІПСО сам. Ціль, емоція, техніка, канал. Найшвидший шлях зрозуміти захист, це раз побувати атакою.</div>
-        </div>
+        </div>`}
       </div>
       <div class="footer-note">ІПСОМНІЯ v0.3 · DEMO BUILD · КУЛЬТУРНІ СИЛИ</div>
     </div>`);
@@ -827,6 +841,7 @@ function showWild(w, fnName){
 }
 /* FIX 2а: той самий Date.now()-based патерн, що й у startTimer — стійкий до тротлінгу вкладки. */
 function startWildTimer(seconds, total){
+  document.body.classList.add('timer-active');   // притлумлює фідбек-кнопку на час активної фази
   total = total || seconds;
   const startedAt = Date.now();
   S._wildLeft = seconds;
@@ -844,6 +859,7 @@ function startWildTimer(seconds, total){
 function wildPick(key, timedOut){
   S._wildDone = true;
   if(wtimerInt){ clearInterval(wtimerInt); wtimerInt=null; }
+  document.body.classList.remove('timer-active');
   const w=S._wild, o=w[key], other=w[key==='a'?'b':'a'];
   const elA=document.getElementById('wOptA'), elB=document.getElementById('wOptB');
   const picked = key==='a'?elA:elB, notPicked = key==='a'?elB:elA;
@@ -970,6 +986,7 @@ function phaseCounter(){
 function pickCounter(idx){
   S._counterDone = true;
   if(timerInt){clearInterval(timerInt);timerInt=null;}
+  document.body.classList.remove('timer-active');
   const sc = SCENARIOS[S.i]; S.total++;
   const c = sc.audiences ? sc.audiences[S.audience].counters : sc.counters;
   const o = c.opts[idx];
@@ -1098,6 +1115,7 @@ function nextScenario(){
 }
 
 function finale(){
+  if(packMode){ packFinale(); return; }   // pack-режим: своя звірка замість кампанійного підсумку
   document.body.classList.remove('boss-mode');
   SFX.crossfadeToAmbient();   // M4: бос-музика кросфейдиться назад в амбієнт
   let crisisHtml = '';
@@ -1165,6 +1183,7 @@ function finale(){
             <li>ЧЕРВОНА КОМАНДА: сконструюй ІПСО сам і зрозумій захист зсередини</li>
           </ul>
         </div>
+        ${feedbackLink('ЗАЛИШИТИ ФІДБЕК — 2 ХВИЛИНИ')}
         <button class="btn" onclick="restart()">ЩЕ РАЗ · ІНША РОЛЬ</button>
         <button class="btn ghost" onclick="restartToModes()">ДО РЕЖИМІВ</button>
       </div>`);
@@ -1180,6 +1199,81 @@ function resetState(){ S.role=null; S.i=0; S.infl=50; S.rep=100; S.repMin=100; S
 function restart(){ resetState(); setInfl(0); roleSelect(); }
 function restartToModes(){ resetState(); setInfl(0); modeSelect(); }
 
+/* =====================================================================
+   PACK-РЕЖИМ (Червона команда / Кріейтор): операцію зібрав інший гравець
+   і передав через ?pack=<base64>. Без сервера. Валідний pack = кампанія
+   з однієї операції: скіп інтро й мапи, одразу бріфінг → операція → фінал.
+   Декод строго за схемою: JSON.parse(decodeURIComponent(atob(...))).
+   ===================================================================== */
+let packMode = false;
+function decodePack(raw){
+  // UTF-8-safe base64: escape() тримає кирилицю компактною (byte-per-byte),
+  // без 6-кратного роздування, яке дало б голий decodeURIComponent(atob()).
+  const sc = JSON.parse(decodeURIComponent(escape(atob(raw))));
+  const str = v => typeof v==='string' && v.length>0;
+  const okMsg = m => m && str(m.a) && str(m.t) && str(m.m) && str(m.v)
+      && typeof m.h==='boolean' && m.osint && str(m.osint.created)
+      && Array.isArray(m.osint.oldPosts);
+  const okOpts = (a,flag) => Array.isArray(a) && a.length>=2
+      && a.every(o=>o && str(o.n) && str(o.e)) && a.some(o=>o[flag]===true);
+  if(!(sc && str(sc.title) && str(sc.brief) && str(sc.debrief) && str(sc.node)
+      && str(sc.tech) && str(sc.badge) && typeof sc.attack==='number'
+      && sc.map && typeof sc.map.x==='number' && typeof sc.map.y==='number'
+      && Array.isArray(sc.feed) && sc.feed.length && sc.feed.every(okMsg) && sc.feed.some(m=>m.h)
+      && sc.techniques && str(sc.techniques.q) && okOpts(sc.techniques.opts,'ok')
+      && sc.counters && str(sc.counters.q) && okOpts(sc.counters.opts,'best')))
+    throw new Error('bad pack schema');
+  return sc;
+}
+function bootPack(raw){
+  let sc; try{ sc = decodePack(raw); }catch(e){ brokenPack(); return; }
+  packMode = true; introSeen = true; tutorialDone = true;   // без інтро й туторіалу в pack-режимі
+  SCENARIOS.length = 0; SCENARIOS.push(sc);                 // кампанія з однієї операції
+  S.role = ROLES[1];                                        // стандартний темп для чесного порівняння
+  document.getElementById('topbar').style.display = 'block';
+  hud(); SFX.startAmbient();
+  startScenario();
+}
+function brokenPack(){
+  packMode = false;
+  document.getElementById('topbar').style.display = 'none';
+  render(`
+    <div style="padding-top:8vh;text-align:center">
+      <div class="eyebrow" style="color:var(--hostile)">ПОШКОДЖЕНИЙ ПАКЕТ</div>
+      <h2>Не вдалось прочитати операцію</h2>
+      <p class="lead" style="max-width:440px;margin:0 auto 20px">Посилання обірване або зібране в несумісній версії. Відкрий звичайну гру й спробуй згенерувати пакет заново.</p>
+      <button class="btn" onclick="goStandard()">ДО ЗВИЧАЙНОЇ ГРИ ▸</button>
+    </div>`);
+}
+function goStandard(){ history.replaceState(null,'',location.pathname); location.reload(); }
+function packFinale(){
+  document.body.classList.remove('boss-mode');
+  const sc = SCENARIOS[0], rec = S._recognized || [];
+  const rows = rec.map(r=>({tech:(S.feed[r.idx].subtype||sc.tech), found:r.found}));
+  const hit = rows.filter(r=>r.found).length;
+  const breached = hit < rows.length || !!(S._op && S._op.false>0);
+  render(`
+    <div style="padding-top:3vh;text-align:center">
+      <div class="eyebrow">РОЗБІР ЧУЖОЇ ОПЕРАЦІЇ</div>
+      <h2>ОПЕРАЦІЮ СТВОРИВ ІНШИЙ ГРАВЕЦЬ</h2>
+      <div class="rank ${breached?'low':'gold'}">${breached?'ПРОБИТО':'ВСТОЯВ'}</div>
+      <p class="lead" style="max-width:440px;margin:0 auto 18px">${breached
+        ? 'Хоч один закладений наратив пройшов повз тебе. Автор влучив у твою сліпу зону.'
+        : 'Ти розкрив кожен наратив, який автор заклав. Атака не пройшла.'}</p>
+      <div class="card" style="text-align:left">
+        <div class="narr-label" style="margin-bottom:10px">ТЕХНІКИ · ЗАКЛАВ АВТОР vs РОЗКРИВ ТИ</div>
+        ${rows.map(r=>`<div class="stat"><span>${r.tech}</span><span class="v ${r.found?'good':'bad'}">${r.found?'✓ розкрито':'✗ пропущено'}</span></div>`).join('')}
+        <div class="stat"><span>Аналіз техніки</span><span class="v ${S._techOK?'good':'bad'}">${S._techOK?'✓ вірно':'✗ хибно'}</span></div>
+        <div class="stat"><span>Фінальна стійкість</span><span class="v">${S.infl} / 100</span></div>
+      </div>
+      ${ENABLE_CREATOR ? `<button class="btn" onclick="location.href='creator.html'">СТВОРИТИ СВОЮ ОПЕРАЦІЮ ▸</button>` : ''}
+      <button class="btn ghost" onclick="goStandard()">ДО ЗВИЧАЙНОЇ ГРИ</button>
+    </div>`);
+}
+
 hud();
 setInfl(0);
-modeSelect();
+// Глобальна плаваюча кнопка фідбеку: створюється раз, живе поза #app, переживає всі render().
+document.body.insertAdjacentHTML('beforeend', '<a id="feedbackFab" class="feedback-fab" href="'+FEEDBACK_URL+'" target="_blank" rel="noopener" title="Залишити фідбек">ФІДБЕК</a>');
+const packRaw = new URLSearchParams(location.search).get('pack');
+if(packRaw){ bootPack(packRaw); } else { modeSelect(); }

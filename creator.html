@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Іпсомнія — Червона команда · Кріейтор</title>
+<style>
+@font-face{font-family:'Press Start 2P';font-style:normal;font-weight:400;font-display:swap;src:url('assets/fonts/press-start-2p.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('assets/fonts/inter-400.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url('assets/fonts/inter-600.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:500;font-display:swap;src:url('assets/fonts/jetbrains-mono-500.woff2') format('woff2')}
+:root{
+  --bg:#0A0F1A; --panel:#111A2B; --panel2:#172236; --line:#26364F;
+  --text:#E9EFF8; --muted:#8DA0BC;
+  --hostile:#E5484D; --hostile-dim:#4A181C;
+  --gold:#F5C542; --gold-dim:#54430F;
+  --ok:#4CC38A; --purple:#B26AC4;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{background:radial-gradient(900px 500px at 50% -8%, #131F38 0%, var(--bg) 60%);
+  color:var(--text);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+/* CRT сканлайни */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:100;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px)}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:99;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.32) 100%)}
+.wrap{max-width:640px;margin:0 auto;padding:18px 16px 60px}
+.px{font-family:'Press Start 2P',monospace}
+.mono{font-family:'JetBrains Mono',monospace}
+.eyebrow{font-family:'Press Start 2P';font-size:9px;letter-spacing:.06em;color:var(--hostile);margin-bottom:12px;line-height:1.7}
+h1{font-family:'Press Start 2P';font-size:clamp(16px,5vw,22px);line-height:1.4;margin-bottom:12px}
+h2{font-family:'Press Start 2P';font-size:clamp(12px,3.6vw,15px);line-height:1.5;margin-bottom:12px}
+.lead{color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:8px}
+.card{background:var(--panel);border:2px solid var(--line);padding:16px;margin-bottom:12px}
+.task{display:flex;gap:10px;align-items:flex-start;background:var(--panel2);border:2px solid var(--line);
+  border-left:4px solid var(--hostile);padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.5}
+.task b{color:var(--gold)}
+button,.btn,select,.msg{touch-action:manipulation}
+.btn{display:block;width:100%;text-align:center;font-family:'Press Start 2P';font-size:11px;
+  padding:15px 12px;border:2px solid #000;cursor:pointer;line-height:1.5;
+  background:var(--gold);color:#12100A;box-shadow:0 4px 0 #000;transition:transform .08s,box-shadow .08s;margin-top:14px}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #000}
+.btn:disabled{opacity:.35;cursor:default}
+.btn.ghost{background:var(--panel);color:var(--muted);border-color:var(--line);box-shadow:0 4px 0 #060B14}
+.btn.red{background:var(--hostile);color:#fff;border-color:#000}
+.btn.small{font-size:9px;padding:11px 10px;margin-top:10px}
+.btnrow{display:flex;gap:10px}
+.btnrow .btn{flex:1}
+.btn:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* ===== Stepper ===== */
+.stepper{display:flex;gap:6px;margin-bottom:18px}
+.stepper .st{flex:1;font-family:'Press Start 2P';font-size:7px;letter-spacing:.03em;text-align:center;
+  padding:9px 4px;border:2px solid var(--line);color:var(--muted);background:var(--panel);line-height:1.5}
+.stepper .st.on{border-color:var(--hostile);color:var(--hostile)}
+.stepper .st.done{border-color:var(--gold-dim);color:var(--gold)}
+
+/* ===== Поля ===== */
+.field{margin-bottom:14px}
+.field label{display:block;font-family:'JetBrains Mono';font-size:11px;color:var(--gold);letter-spacing:.05em;margin-bottom:7px}
+select{width:100%;font-family:'Inter';font-size:14px;color:var(--text);background:var(--panel2);
+  border:2px solid var(--line);padding:12px 12px;cursor:pointer;-webkit-appearance:none;appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 18px,calc(100% - 12px) 18px;background-size:6px 6px,6px 6px;background-repeat:no-repeat}
+select:hover{border-color:#3A4E73}
+.hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:6px}
+
+/* ===== Фаза-картка ===== */
+.phase-card{background:var(--panel);border:2px solid var(--line);border-top:3px solid var(--hostile);padding:14px;margin-bottom:14px}
+.phase-num{font-family:'Press Start 2P';font-size:8px;color:var(--hostile);margin-bottom:12px;letter-spacing:.06em}
+
+/* ===== Стрічка (прев'ю поста) ===== */
+.feed{display:flex;flex-direction:column;gap:10px}
+.msg{background:var(--panel2);border:2px solid var(--line);padding:12px 14px;position:relative}
+.msg.host{border-left:4px solid var(--hostile)}
+.msg.clean{border-left:4px solid var(--ok)}
+.msg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px}
+.msg-author{font-weight:600;font-size:13px;color:#B8C8E2}
+.msg-meta{font-family:'JetBrains Mono';font-size:10px;color:var(--muted);white-space:nowrap}
+.msg-text{font-size:14px;line-height:1.55}
+.msg-views{font-family:'JetBrains Mono';font-size:10px;color:var(--muted);margin-top:8px;text-align:right}
+.msg .tag{position:absolute;top:-11px;right:10px;font-family:'Press Start 2P';font-size:7px;padding:4px 7px;color:#fff}
+.msg .tag.ob{background:var(--hostile)}
+.msg .tag.sub{background:var(--purple)}
+.msg .tag.cl{background:#1F4A36;color:var(--ok)}
+.preview-label{font-family:'JetBrains Mono';font-size:10px;color:var(--muted);letter-spacing:.1em;margin:14px 0 8px}
+
+/* ===== Експорт ===== */
+.export-box{background:var(--panel2);border:2px solid var(--gold-dim);padding:16px;margin-top:14px}
+.export-box .lbl{font-family:'JetBrains Mono';font-size:10px;color:var(--gold);letter-spacing:.08em;margin-bottom:8px}
+textarea.link{width:100%;font-family:'JetBrains Mono';font-size:11px;color:var(--text);background:var(--panel);
+  border:2px solid var(--line);padding:10px;resize:none;height:74px;line-height:1.4;word-break:break-all}
+.qr{display:flex;justify-content:center;margin-top:14px;background:#fff;padding:12px;max-width:260px;margin-left:auto;margin-right:auto}
+.qr svg{width:100%;height:auto;display:block}
+.warnbox{background:#231216;border:2px solid #5A1D22;color:#D8A9AC;font-size:12px;line-height:1.55;padding:10px 12px;margin-top:12px}
+.okmsg{color:var(--ok);font-size:12px;font-family:'JetBrains Mono';margin-top:8px;min-height:16px}
+.footer-note{font-family:'JetBrains Mono';font-size:10px;color:#4A5A75;text-align:center;margin-top:28px;letter-spacing:.08em}
+.topline{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.backlink{font-family:'JetBrains Mono';font-size:11px;color:var(--muted);text-decoration:none;border:1px solid var(--line);padding:6px 10px}
+.backlink:hover{border-color:var(--gold);color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topline">
+    <span class="eyebrow" style="margin-bottom:0">ЧЕРВОНА КОМАНДА · КРІЕЙТОР</span>
+    <a class="backlink" href="index.html">← ДО ГРИ</a>
+  </div>
+  <div id="app"></div>
+  <div class="footer-note">ІПСОМНІЯ v0.3 · РЕЖИМ ЧЕРВОНА КОМАНДА · КУЛЬТУРНІ СИЛИ</div>
+</div>
+
+<script src="qrcode.js"></script>
+<script>
+/* =====================================================================
+   КРІЕЙТОР ЧЕРВОНОЇ КОМАНДИ
+   Гравець збирає ІПСО-операцію з фіктивної бібліотеки (нуль вільного
+   тексту) і експортує її як index.html?pack=<base64>. Схема пакета
+   збігається 1:1 зі SCENARIOS у content.js — двигун грає її без правок.
+   Кодування дзеркалить loader: btoa(encodeURIComponent(JSON)).
+   ===================================================================== */
+
+/* ---- Фіктивна бібліотека (усі сутності вигадані, generic) ---- */
+const AUDIENCES = [
+  "мешканці прифронтового міста",
+  "батьки мобілізованих",
+  "водії та власники авто",
+  "молодь у соцмережах",
+  "жителі прикордоння",
+  "донори та міжнародні партнери"
+];
+const EFFECTS = [
+  {n:"паніка", d:"загнати аудиторію в страх і скупку, щоб криза сама себе намалювала"},
+  {n:"недовіра до влади", d:"переконати, що офіційним джерелам брехати вигідно"},
+  {n:"розкол суспільства", d:"стравити групи між собою, розірвати «свій-свій»"},
+  {n:"апатія і зневіра", d:"вимкнути волю до опору через втому: «від нас нічого не залежить»"}
+];
+const TOPICS = [
+  "мобілізації","енергетики","цін на пальне",
+  "допомоги від партнерів","оборонних закупівель","ситуації на фронті"
+];
+const DETAILS = [
+  "за словами інсайдера","цифри нібито з відкритих джерел","про це чомусь мовчать",
+  "поки пост не видалили","знайомий зі штабу підтвердив","документи обіцяють скоро"
+];
+const CHANNELS = [
+  "🔥 Правда без фільтрів","🎓 Аналітик Ковальчук","🌍 Global Voices (пер.)",
+  "💀 Окопний вісник","📢 Голос вулиці","🕊 За мир без умов"
+];
+
+/* Техніки = таксономія бейджів гри. У кожної 2 шаблони поста (гучний/тонкий)
+   з підстановками {тема} і {деталь}. */
+const TECHS = [
+  {name:"Підміна причини", badge:"ПІДМІНА",
+   desc:"Справжню причину проблеми підмінюють вигаданою: винні не обставини, а «свої».",
+   eOK:"Так. Ядро в тому, що реальну причину кризи замінили зручною вигадкою і перевели гнів на своїх.",
+   eWrong:"Схоже, але це не ядро цієї операції. Тут головне саме підміна причини.",
+   tpls:[
+    {tier:"ob", text:"Криза навколо {тема} не те, чим здається. Справжню причину від вас ховають, {деталь}. Кому вигідно тримати вас у темряві?"},
+    {tier:"sub", text:"Не хочу нічого стверджувати щодо {тема}. Просто офіційна версія не сходиться, {деталь}. Питання лишаю відкритим."}
+   ]},
+  {name:"Дзеркальне звинувачення", badge:"ДЗЕРКАЛО",
+   desc:"Наслідки дій ворога приписують жертві: винні самі постраждалі.",
+   eOK:"Так. Схема перекладає провину за атаку на тих, хто від неї страждає.",
+   eWrong:"Тут працює інше. Ядро це дзеркальне звинувачення: провину повертають жертві.",
+   tpls:[
+    {tier:"ob", text:"Це не ворог винен у тому, що коїться навколо {тема}. Це наслідок дій самих наших, {деталь}. А платять звичайні люди."},
+    {tier:"sub", text:"Бачив різне за ці роки. Картина щодо {тема} якась дивна, на офіційну версію не тягне, {деталь}. Думайте самі."}
+   ]},
+  {name:"Фальшива симетрія", badge:"СИМЕТРІЯ",
+   desc:"Законну ціль прирівнюють до злочину: «обидві сторони однакові, час зупинятись».",
+   eOK:"Так. Знак рівності між різними за суттю діями і веде до висновку «зупиніть те, що працює».",
+   eWrong:"Не зовсім. Стрижень цієї операції фальшива симетрія, а не це.",
+   tpls:[
+    {tier:"ob", text:"Навколо {тема} обидві сторони роблять те саме. Ви їм, вони вам, страждають усі однаково, {деталь}. Може, вже час зупинятись?"},
+    {tier:"sub", text:"Можна зрозуміти нашу позицію щодо {тема}. Але спіраль б'є по всіх без винятку, {деталь}. Вікно для розмови ще відчинене."}
+   ]},
+  {name:"Паразитування на конфлікті", badge:"ПАРАЗИТ",
+   desc:"Реальну суперечку накачують вигаданим шаром зради, щоб зробити діалог неможливим.",
+   eOK:"Так. Конфлікт справжній, тому вкид виглядає органічно, але зверху дописано «вони проти вас».",
+   eWrong:"Ні, тут ядро в паразитуванні на реальному конфлікті, а не в цьому.",
+   tpls:[
+    {tier:"ob", text:"Поки ви розбираєтесь із {тема}, вас елементарно зраджують, {деталь}. Своїх кидають заради чужих, а вам розказують казки."},
+    {tier:"sub", text:"Суперечка щодо {тема} справжня, ніхто не сперечається. Дивно тільки, кому вона так вчасно вигідна, {деталь}."}
+   ]},
+  {name:"Розгойдування з двох боків", badge:"РОЗГОЙДУВАННЯ",
+   desc:"Один джерело розганяє протилежні гасла, щоб розірвати зв'язку і залишити «нема кому вірити».",
+   eOK:"Так. Мета не перемога однієї тези, а сам розрив довіри: винні відразу всі.",
+   eWrong:"Тут інше ядро. Схема це розгойдування протилежних гасел з одного джерела.",
+   tpls:[
+    {tier:"ob", text:"Скандал навколо {тема} показав головне: система гнила наскрізь, {деталь}. І ті, і ті проти вас, вибирати нема з кого."},
+    {tier:"sub", text:"У історії щодо {тема} винні геть усі відразу: і хто мовчить, і хто кричить, {деталь}. Довіряти не можна нікому."}
+   ]},
+  {name:"Відмивання наративу", badge:"ВІДМИВАННЯ",
+   desc:"Анонімний вкид легалізують через ланки, поки він не стане «джерела повідомляють».",
+   eOK:"Так. Кожна ланка додає ваги, і вкид стає фактом публічного поля без єдиного доказу.",
+   eWrong:"Не воно. Тут стрижень це відмивання вкиду через проміжні ланки.",
+   tpls:[
+    {tier:"ob", text:"ЕКСКЛЮЗИВ щодо {тема}. Джерело зі штабу злило прямим текстом, {деталь}. Ви знаєте, що робити з цим постом."},
+    {tier:"sub", text:"Про {тема} пише вже й поважна закордонна преса. Джерела повідомляють про занепокоєння, {деталь}. Дим без вогню рідко буває."}
+   ]}
+];
+
+/* Спільні OSINT-профілі (короткі, щоб пакет був компактним) */
+const OSINT_HOST = {created:"Канал зареєстровано кілька тижнів тому.", postsMonth:"Різкий сплеск активності останнім часом.", avatar:"Стокове зображення, без унікальних деталей.", nameHistory:"Нещодавно змінив назву.", oldPosts:["До цього місяця постів майже нема."], repostedBy:"Анонімні агрегатори без явної тематики."};
+const OSINT_CLEAN = {created:"Канал працює багато років.", postsMonth:"Рівна щоденна активність.", avatar:"Стабільний логотип, не змінювався.", nameHistory:"Назва не змінювалась.", oldPosts:["Буденні місцеві новини й оголошення."], repostedBy:"Місцеві мешканці й профільні спільноти."};
+
+/* Чесні пости-наповнювачі (фіксовані, тематично нейтральні). Гравець їх
+   не редагує, вони роблять фазу розпізнавання чесною: хибна тривога карається. */
+const CLEAN_FEED = [
+  {osint:OSINT_CLEAN, a:"🛡 Офіційне джерело", t:"Ситуація під контролем служб. Дані оновлюються, доступні за офіційними каналами. Просимо звірятись із першоджерелом.", m:"09:05", v:"31K", h:false, w:"Офіційна позиція з конкретикою. Нудно, але нудно не значить вороже."},
+  {osint:OSINT_CLEAN, a:"👤 Місцевий мешканець", t:"чесно, вже втомивсь від усього. просто хочеться, щоб швидше все скінчилось. тримаймося там", m:"10:12", v:"18K", h:false, w:"Щира втома без вигаданих фактів і без фрейму. Стомлений не значить ворожий."},
+  {osint:OSINT_CLEAN, a:"🏘 Сусідський чат", t:"хто має зайвий павербанк на район? аптеці треба до вечора. скидайте в бот, координуємось", m:"11:20", v:"24K", h:false, w:"Побутова взаємодопомога. Тут нема чого шукати."}
+];
+
+const HOST_STAMPS = ["09:40","10:55","12:30"];
+const HOST_VIEWS  = ["88K","120K","64K"];
+
+/* ---- Стан майстра ---- */
+const W = {
+  step: 1,
+  audience: 0,
+  effect: 0,
+  phases: [
+    {tech:0, tpl:0, channel:0, topic:0, detail:0},
+    {tech:1, tpl:1, channel:3, topic:1, detail:2},
+    {tech:5, tpl:0, channel:2, topic:4, detail:5}
+  ]
+};
+
+const app = document.getElementById('app');
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fill(tpl, topic, detail){ return tpl.replace('{тема}', TOPICS[topic]).replace('{деталь}', DETAILS[detail]); }
+function opt(list, sel, map){ return list.map((v,i)=>`<option value="${i}"${i===sel?' selected':''}>${esc(map?map(v):v)}</option>`).join(''); }
+
+function stepper(){
+  const names=['1 · ЦІЛЬ','2 · ФАЗИ','3 · ЕКСПОРТ'];
+  return '<div class="stepper">'+names.map((n,i)=>{
+    const s=i+1, cls=s===W.step?'on':(s<W.step?'done':'');
+    return `<div class="st ${cls}">${n}</div>`;
+  }).join('')+'</div>';
+}
+
+/* ---- Крок 1: ціль ---- */
+function step1(){
+  W.step=1;
+  app.innerHTML = stepper()+`
+    <h1>Кого і чим б'ємо</h1>
+    <p class="lead">Ти в ролі ворога. Обери, на кого спрямована операція і якого ефекту ти домагаєшся. Далі збереш під це три пости.</p>
+    <div class="card">
+      <div class="field">
+        <label>ЦІЛЬОВА АУДИТОРІЯ</label>
+        <select onchange="W.audience=+this.value">${opt(AUDIENCES,W.audience)}</select>
+      </div>
+      <div class="field">
+        <label>БАЖАНИЙ ЕФЕКТ</label>
+        <select onchange="setEffect(+this.value)">${opt(EFFECTS,W.effect,e=>e.n)}</select>
+        <div class="hint" id="effHint">${esc(EFFECTS[W.effect].d)}</div>
+      </div>
+    </div>
+    <button class="btn red" onclick="step2()">ДАЛІ · ЗІБРАТИ ФАЗИ ▸</button>`;
+}
+function setEffect(v){ W.effect=v; const h=document.getElementById('effHint'); if(h) h.textContent=EFFECTS[v].d; }
+
+/* ---- Крок 2: три фази ---- */
+function step2(){
+  W.step=2;
+  const cards = W.phases.map((p,i)=>{
+    const tech=TECHS[p.tech], tpl=tech.tpls[p.tpl];
+    const text=fill(tpl.text, p.topic, p.detail);
+    const tierTag = tpl.tier==='sub' ? '<span class="tag sub">ТОНКИЙ</span>' : '<span class="tag ob">ЯВНИЙ</span>';
+    return `<div class="phase-card">
+      <div class="phase-num">ПОСТ ${i+1} / 3</div>
+      <div class="field"><label>ТЕХНІКА</label>
+        <select onchange="setF(${i},'tech',+this.value)">${opt(TECHS,p.tech,t=>t.name)}</select>
+        <div class="hint">${esc(tech.desc)}</div></div>
+      <div class="field"><label>ШАБЛОН ПОСТА</label>
+        <select onchange="setF(${i},'tpl',+this.value)">${tech.tpls.map((t,j)=>`<option value="${j}"${j===p.tpl?' selected':''}>${t.tier==='sub'?'Тонкий':'Гучний'}: ${esc(t.text.slice(0,42))}…</option>`).join('')}</select></div>
+      <div class="field"><label>КАНАЛ</label>
+        <select onchange="setF(${i},'channel',+this.value)">${opt(CHANNELS,p.channel)}</select></div>
+      <div class="field"><label>ТЕМА</label>
+        <select onchange="setF(${i},'topic',+this.value)">${opt(TOPICS,p.topic)}</select></div>
+      <div class="field"><label>ДЕТАЛЬ</label>
+        <select onchange="setF(${i},'detail',+this.value)">${opt(DETAILS,p.detail)}</select></div>
+      <div class="preview-label">ПРЕВ'Ю ПОСТА</div>
+      <div class="feed"><div class="msg host">${tierTag}
+        <div class="msg-head"><span class="msg-author">${esc(CHANNELS[p.channel])}</span><span class="msg-meta">${HOST_STAMPS[i]}</span></div>
+        <div class="msg-text">${esc(text)}</div>
+        <div class="msg-views">👁 ${HOST_VIEWS[i]}</div>
+      </div></div>
+    </div>`;
+  }).join('');
+  app.innerHTML = stepper()+`
+    <h1>Три пости атаки</h1>
+    <div class="task">🎭 <div>У кожному пості обери <b>техніку</b>, шаблон і підстановки. Гравець-захисник маркуватиме ці пости у стрічці серед чесних. Ядром операції двигун вважатиме техніку <b>першого поста</b>.</div></div>
+    ${cards}
+    <div class="btnrow">
+      <button class="btn ghost" onclick="step1()">◂ НАЗАД</button>
+      <button class="btn red" onclick="step3()">ПРЕВ'Ю ТА ЕКСПОРТ ▸</button>
+    </div>`;
+}
+function setF(i, field, val){ W.phases[i][field]=val; step2(); }
+
+/* ---- Збірка операції (схема = SCENARIOS[i] у content.js) ---- */
+function buildOperation(){
+  const primary = TECHS[W.phases[0].tech];
+  const hostFeed = W.phases.map((p,i)=>{
+    const tech=TECHS[p.tech], tpl=tech.tpls[p.tpl];
+    return {osint:OSINT_HOST, a:CHANNELS[p.channel], t:fill(tpl.text,p.topic,p.detail),
+            m:HOST_STAMPS[i], v:HOST_VIEWS[i], h:true, tier:tpl.tier, subtype:tech.name};
+  });
+  // чергуємо ворожі й чесні, щоб позиції не читались наперед (двигун ще й шафлить)
+  const feed=[];
+  for(let i=0;i<3;i++){ feed.push(hostFeed[i]); if(CLEAN_FEED[i]) feed.push(CLEAN_FEED[i]); }
+  // Фаза 2: правильна = технiка першого поста, дистрактори з решти таксономії
+  const techOpts=[{n:primary.name, d:primary.desc, ok:true, e:primary.eOK}];
+  TECHS.filter(t=>t.name!==primary.name).slice(0,3).forEach(t=>
+    techOpts.push({n:t.name, d:t.desc, ok:false, e:t.eWrong}));
+  const usedNames=[...new Set(W.phases.map(p=>TECHS[p.tech].name))].join(", ");
+  return {
+    id:"redteam", title:"ОПЕРАЦІЯ · "+EFFECTS[W.effect].n.toUpperCase(),
+    tech:primary.name, badge:primary.badge, node:"ПОЛІГОН", map:{x:50,y:50},
+    brief:"Операцію під тебе зібрав інший гравець у режимі Червона команда. Ціль: "+AUDIENCES[W.audience]+". Замовлений ефект: "+EFFECTS[W.effect].n+". У стрічці ворожі вкиди перемішані з чесними постами. Знайди наративи, назви техніку ядра і встигни з контрходом.",
+    attack:-10,
+    feed:feed,
+    techniques:{ q:"Які пости ворожі ти вже позначив. Що з технік нижче є ядром цієї операції?", opts:techOpts },
+    counters:{ q:"Ворожа версія набирає охоплення. Твій контрхід?", opts:[
+      {n:"Факти, джерело і швидкість", d:"Швидко видати перевірювані дані з посиланням і закрити «відкрите питання», поки його не підхопили.", fx:12, best:true, e:"Вакуум заповнює той, хто мовчить останнім. Конкретика з джерелом б'є будь-який «інсайд». Це контрхід за замовчуванням."},
+      {n:"Заспокоїти без деталей", d:"«Все під контролем, не піддавайтесь на ІПСО», без цифр і фактів.", fx:3, cons:true, best:false, e:"Зовні тихіше, а питання законсервоване. Гучне мовчання: криза не зникла, вона накопичується під кришкою."},
+      {n:"Тиснути на поширювачів", d:"Оголосити всіх, хто репостить, агентами ворога і вимагати блокувань.", fx:-12, rep:-12, best:false, e:"Звинуватив своїх, поглибив розкол, зробив за ворога його роботу. Ефект Стрейзанд довершить справу."}
+    ]},
+    debrief:"Цю операцію зібрав інший гравець. Закладені техніки: "+usedNames+". Зібрати атаку самому це найшвидший спосіб навчитись її бачити: тепер конвеєр знайомий зсередини.",
+    cliff:""
+  };
+}
+function encodePack(op){ return btoa(unescape(encodeURIComponent(JSON.stringify(op)))); }
+// encodeURIComponent на base64: інакше '+' у URL читається як пробіл і ламає atob.
+// Loader через URLSearchParams.get() відновлює його автоматично, тому в двигуні правок не треба.
+function packLink(b64){ return location.href.replace(/creator\.html.*$/, 'index.html') + '?pack=' + encodeURIComponent(b64); }
+
+/* ---- Крок 3: прев'ю стрічки та експорт ---- */
+function step3(){
+  W.step=3;
+  const op=buildOperation();
+  const feedHTML = op.feed.map(m=>{
+    const host=m.h, tag = host ? (m.tier==='sub'?'<span class="tag sub">ТОНКИЙ</span>':'<span class="tag ob">ЯВНИЙ</span>') : '<span class="tag cl">ЧЕСНИЙ</span>';
+    return `<div class="msg ${host?'host':'clean'}">${tag}
+      <div class="msg-head"><span class="msg-author">${esc(m.a)}</span><span class="msg-meta">${m.m}</span></div>
+      <div class="msg-text">${esc(m.t)}</div>
+      <div class="msg-views">👁 ${m.v}</div></div>`;
+  }).join('');
+  app.innerHTML = stepper()+`
+    <h1>Прев'ю операції</h1>
+    <p class="lead">Так стрічку побачить гравець-захисник (двигун ще перетасує пости). Ворожі позначено збоку червоним, чесні наповнювачі зеленим. Задоволений? Пакуй.</p>
+    <div class="feed">${feedHTML}</div>
+    <div class="btnrow">
+      <button class="btn ghost" onclick="step2()">◂ НАЗАД</button>
+      <button class="btn red" onclick="doExport()">ЗАПАКУВАТИ ▸</button>
+    </div>
+    <div id="exportZone"></div>`;
+}
+
+function doExport(){
+  const op=buildOperation();
+  const b64=encodePack(op);
+  const link=packLink(b64);
+  const zone=document.getElementById('exportZone');
+  let qrHTML='', warn='';
+  try{
+    const qr=qrcode(0,'L'); qr.addData(link); qr.make();
+    qrHTML=`<div class="qr">${qr.createSvgTag({cellSize:4, margin:2, scalable:true})}</div>`;
+  }catch(e){
+    warn=`<div class="warnbox">Операція завелика для QR-коду. Скористайся посиланням вище: скопіюй і надішли гравцю.</div>`;
+  }
+  zone.innerHTML=`
+    <div class="export-box">
+      <div class="lbl">ПОСИЛАННЯ НА ОПЕРАЦІЮ (${link.length} символів)</div>
+      <textarea class="link" id="packLink" readonly>${esc(link)}</textarea>
+      <button class="btn small" onclick="copyLink()">📋 КОПІЮВАТИ ПОСИЛАННЯ</button>
+      <a class="btn small ghost" style="text-decoration:none" href="${esc(link)}" target="_blank" rel="noopener">▶ ЗІГРАТИ САМОМУ (НОВА ВКЛАДКА)</a>
+      <div class="okmsg" id="copyMsg"></div>
+      ${qrHTML}${warn}
+    </div>`;
+  zone.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+function copyLink(){
+  const ta=document.getElementById('packLink'), msg=document.getElementById('copyMsg');
+  ta.select(); ta.setSelectionRange(0, ta.value.length);
+  const done=()=>{ if(msg) msg.textContent='✓ Скопійовано. Надішли гравцю.'; };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ try{document.execCommand('copy');done();}catch(e){ if(msg) msg.textContent='Виділи текст і скопіюй вручну.'; } });
+  } else { try{document.execCommand('copy');done();}catch(e){ if(msg) msg.textContent='Виділи текст і скопіюй вручну.'; } }
+}
+
+step1();
+</script>
+</body>
+</html>
