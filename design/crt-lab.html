@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;background:#0B0F1A;}
+  *{box-sizing:border-box;}
+  a{color:#4AE0E0;text-decoration:none;border-bottom:1px solid rgba(74,224,224,.35);}
+  a:hover{color:#FFD24A;border-color:#FFD24A;}
+  ::selection{background:#FFD24A;color:#0B0F1A;}
+  ::-webkit-scrollbar{height:8px;width:8px;}
+  ::-webkit-scrollbar-thumb{background:#2A3550;}
+</style>
+</helmet>
+
+<div id="lab" style="position:relative;min-height:100vh;background:#0B0F1A;color:#EAF2FF;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding:0 0 80px;overflow-x:hidden;">
+
+  <!-- ============ ШАПКА ============ -->
+  <header style="position:sticky;top:0;z-index:60;background:rgba(11,15,26,.86);backdrop-filter:blur(6px);border-bottom:2px solid #232E48;padding:16px 26px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div style="width:11px;height:11px;background:#FFD24A;box-shadow:0 0 4px rgba(255,210,74,.55),0 0 14px rgba(255,168,40,.3);"></div>
+      <div>
+        <div style="font-family:'Press Start 2P',monospace;font-size:13px;color:#FFD24A;text-shadow:0 0 4px rgba(255,210,74,.55),0 0 14px rgba(255,168,40,.3);letter-spacing:1px;">ІПСОМНІЯ</div>
+        <div style="font-size:11px;color:#7C89A6;margin-top:6px;letter-spacing:1px;">ДИЗАЙН-ЛАБ · ЛАМПОВИЙ CRT · vanilla, 0 бібліотек</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span style="font-size:10px;color:#7C89A6;">prefers-reduced-motion</span>
+      <button id="rm-toggle" class="btn" style="font-family:'Press Start 2P',monospace;font-size:9px;">РУХ: УВІМК</button>
+    </div>
+  </header>
+
+  <div style="max-width:1120px;margin:0 auto;padding:34px 26px 0;display:flex;flex-direction:column;gap:26px;">
+
+    <!-- 01 TOKENS -->
+    <section style="background:#131A2B;border:2px solid #232E48;">
+      <div class="mod-head" style="padding:18px 22px;border-bottom:2px solid #232E48;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#4AE0E0;text-shadow:0 0 4px rgba(74,224,224,.55);">01</span>
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#EAF2FF;">design-tokens.css</span>
+        <span style="font-size:11px;color:#7C89A6;">палітра · тепле фосфорне свічення · віньєтка · зерно · scanline-мерехтіння</span>
+      </div>
+      <div style="padding:22px;">
+        <p style="font-size:12px;line-height:1.7;color:#9FB0D0;margin:0 0 16px;">Ефекти вже накладено на весь цей екран — віньєтка по краях, тонкі скан-лінії з мерехтінням, зерно та тепла температура. Ці 4 оверлеї <code style="color:#4AE0E0;">position:fixed;pointer-events:none</code> — нічого не ламають у розмітці.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <span style="font-family:'Press Start 2P',monospace;font-size:10px;color:#FFD24A;text-shadow:0 0 4px rgba(255,210,74,.55),0 0 14px rgba(255,168,40,.3);background:#0E1424;border:1px solid #5A4A18;padding:9px 12px;">ДОВІРА · #FFD24A</span>
+          <span style="font-family:'Press Start 2P',monospace;font-size:10px;color:#FF4A4A;text-shadow:0 0 4px rgba(255,74,74,.6),0 0 16px rgba(255,60,60,.32);background:#0E1424;border:1px solid #5A2020;padding:9px 12px;">ВОРОГ · #FF4A4A</span>
+          <span style="font-family:'Press Start 2P',monospace;font-size:10px;color:#9B6BFF;text-shadow:0 0 4px rgba(155,107,255,.6),0 0 16px rgba(140,90,255,.32);background:#0E1424;border:1px solid #3A2A66;padding:9px 12px;">УТИЛІТА · #9B6BFF</span>
+          <span style="font-family:'Press Start 2P',monospace;font-size:10px;color:#4AE0E0;text-shadow:0 0 4px rgba(74,224,224,.55),0 0 14px rgba(50,200,210,.28);background:#0E1424;border:1px solid #205050;padding:9px 12px;">ІНФО · #4AE0E0</span>
+        </div>
+      </div>
+      <div class="code-wrap" data-code="tokens"></div>
+    </section>
+
+    <!-- 02 BOOT -->
+    <section style="background:#131A2B;border:2px solid #232E48;">
+      <div class="mod-head" style="padding:18px 22px;border-bottom:2px solid #232E48;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#4AE0E0;text-shadow:0 0 4px rgba(74,224,224,.55);">02</span>
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#EAF2FF;">ЗАВАНТАЖЕННЯ · «термінал прокидається»</span>
+        <span style="font-size:11px;color:#7C89A6;">CRT-спалах + рядки зверху вниз · ~180мс</span>
+      </div>
+      <div style="padding:22px;">
+        <div id="d-boot" class="screen-box" style="background:#0E1424;border:1px solid #232E48;padding:20px;min-height:180px;font-family:'Press Start 2P',monospace;font-size:10px;line-height:2.2;color:#4AE0E0;">
+          <div class="boot-line" style="color:#7C89A6;">&gt; POST ... OK</div>
+          <div class="boot-line" style="color:#4AE0E0;text-shadow:0 0 4px rgba(74,224,224,.55);">&gt; IPSOMNIA CORE v3.7 // WAKE</div>
+          <div class="boot-line" style="color:#FFD24A;text-shadow:0 0 4px rgba(255,210,74,.55);">&gt; ДОВІРА .......... 61%</div>
+          <div class="boot-line" style="color:#9B6BFF;text-shadow:0 0 4px rgba(155,107,255,.6);">&gt; УТИЛІТИ ......... ЗАВАНТАЖЕНО</div>
+          <div class="boot-line" style="color:#7C89A6;">&gt; СТРІЧКА ......... СИНХР.</div>
+          <div class="boot-line" style="color:#EAF2FF;">&gt; ГОТОВО. _</div>
+        </div>
+        <div style="margin-top:16px;"><button id="b-boot" class="btn btn--cyan" style="font-family:'Press Start 2P',monospace;font-size:10px;">▶ ВІДТВОРИТИ</button></div>
+      </div>
+      <div class="code-wrap" data-code="boot"></div>
+    </section>
+
+    <!-- 03 WIPE -->
+    <section style="background:#131A2B;border:2px solid #232E48;">
+      <div class="mod-head" style="padding:18px 22px;border-bottom:2px solid #232E48;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#4AE0E0;text-shadow:0 0 4px rgba(74,224,224,.55);">03</span>
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#EAF2FF;">ПЕРЕХІД · горизонтальний wipe</span>
+        <span style="font-size:11px;color:#7C89A6;">світлова смуга старого монітора, контент міняється на піку</span>
+      </div>
+      <div style="padding:22px;">
+        <div id="d-wipe" style="position:relative;overflow:hidden;background:#0E1424;border:1px solid #232E48;min-height:170px;display:flex;align-items:center;justify-content:center;">
+          <div id="wipe-pane" style="font-family:'Press Start 2P',monospace;font-size:16px;color:#FFD24A;text-shadow:0 0 4px rgba(255,210,74,.55),0 0 14px rgba(255,168,40,.3);">ЕКРАН · СТРІЧКА</div>
+          <div id="wipe-ovl" class="wipe" aria-hidden="true"></div>
+        </div>
+        <div style="margin-top:16px;"><button id="b-wipe" class="btn btn--cyan" style="font-family:'Press Start 2P',monospace;font-size:10px;">▶ ПЕРЕЙТИ</button></div>
+      </div>
+      <div class="code-wrap" data-code="wipe"></div>
+    </section>
+
+    <!-- 04 BUTTONS -->
+    <section style="background:#131A2B;border:2px solid #232E48;">
+      <div class="mod-head" style="padding:18px 22px;border-bottom:2px solid #232E48;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#4AE0E0;text-shadow:0 0 4px rgba(74,224,224,.55);">04</span>
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#EAF2FF;">КНОПКИ · пульс свічення</span>
+        <span style="font-size:11px;color:#7C89A6;">наведіть / натисніть · окремий стиль фіолетової ФІДБЕК</span>
+      </div>
+      <div style="padding:22px;display:flex;gap:14px;flex-wrap:wrap;">
+        <button class="btn btn--gold" style="font-family:'Press Start 2P',monospace;font-size:10px;">ПІДТРИМАТИ</button>
+        <button class="btn btn--cyan" style="font-family:'Press Start 2P',monospace;font-size:10px;">ДЕТАЛІ</button>
+        <button class="btn" style="font-family:'Press Start 2P',monospace;font-size:10px;">ПРОПУСТИТИ</button>
+        <button class="btn btn--feedback" style="font-family:'Press Start 2P',monospace;font-size:10px;">ФІДБЕК</button>
+      </div>
+      <div class="code-wrap" data-code="buttons"></div>
+    </section>
+
+    <!-- 05 CARD -->
+    <section style="background:#131A2B;border:2px solid #232E48;">
+      <div class="mod-head" style="padding:18px 22px;border-bottom:2px solid #232E48;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#4AE0E0;text-shadow:0 0 4px rgba(74,224,224,.55);">05</span>
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#EAF2FF;">КАРТКА СТРІЧКИ · поява + загроза</span>
+        <span style="font-size:11px;color:#7C89A6;">typing-мерехтіння · «позначено як загроза» = червона рамка + 1 глітч</span>
+      </div>
+      <div style="padding:22px;">
+        <article id="d-card" class="feed-card" style="max-width:520px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <div style="width:26px;height:26px;background:#0E1424;border:1px solid #2A3550;"></div>
+            <div class="feed-title" style="font-family:'Press Start 2P',monospace;font-size:9px;color:#EAF2FF;">@nomad_042</div>
+            <div style="margin-left:auto;font-size:10px;color:#7C89A6;">02:14</div>
+          </div>
+          <p style="margin:0;font-size:12px;line-height:1.7;color:#C7D3EC;">Кажуть, індекс довіри знову підкрутили вночі. Хтось перевіряв журнали? Цифри не сходяться на 4%.</p>
+        </article>
+        <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;">
+          <button id="b-card-appear" class="btn btn--cyan" style="font-family:'Press Start 2P',monospace;font-size:10px;">▶ ПОЯВА</button>
+          <button id="b-card-threat" class="btn" style="font-family:'Press Start 2P',monospace;font-size:10px;">⚑ ПОЗНАЧИТИ ЗАГРОЗУ</button>
+        </div>
+      </div>
+      <div class="code-wrap" data-code="card"></div>
+    </section>
+
+    <!-- 06 SCALE -->
+    <section style="background:#131A2B;border:2px solid #232E48;">
+      <div class="mod-head" style="padding:18px 22px;border-bottom:2px solid #232E48;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#4AE0E0;text-shadow:0 0 4px rgba(74,224,224,.55);">06</span>
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#EAF2FF;">ШКАЛА ВПЛИВУ · перетікання + тривога</span>
+        <span style="font-size:11px;color:#7C89A6;">scaleX (не width) · попереджувальний пульс у червоній зоні &gt;75</span>
+      </div>
+      <div style="padding:22px;">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+          <span style="font-family:'Press Start 2P',monospace;font-size:9px;color:#7C89A6;">ВПЛИВ</span>
+          <div id="d-scale" class="infl" style="flex:1;"><div class="infl-fill"></div><div class="infl-warn"></div></div>
+          <span id="scale-val" style="font-family:'Press Start 2P',monospace;font-size:11px;color:#FFD24A;min-width:52px;text-align:right;text-shadow:0 0 4px rgba(255,210,74,.55);">30</span>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button class="btn b-scale" data-v="30" style="font-family:'Press Start 2P',monospace;font-size:10px;">30</button>
+          <button class="btn b-scale" data-v="62" style="font-family:'Press Start 2P',monospace;font-size:10px;">62</button>
+          <button class="btn b-scale" data-v="88" style="font-family:'Press Start 2P',monospace;font-size:10px;">88 ⚠</button>
+        </div>
+      </div>
+      <div class="code-wrap" data-code="scale"></div>
+    </section>
+
+    <!-- 07 PVP -->
+    <section style="background:#131A2B;border:2px solid #232E48;">
+      <div class="mod-head" style="padding:18px 22px;border-bottom:2px solid #232E48;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#4AE0E0;text-shadow:0 0 4px rgba(74,224,224,.55);">07</span>
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#EAF2FF;">PvP-ЗВІТ · звірка + печатка вердикту</span>
+        <span style="font-size:11px;color:#7C89A6;">рядки з'являються послідовно · ПРОБИТО/ВСТОЯВ б'є печаткою</span>
+      </div>
+      <div style="padding:22px;">
+        <div id="d-pvp" style="position:relative;background:#0E1424;border:1px solid #232E48;padding:18px 18px 22px;">
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px 16px;font-family:'Press Start 2P',monospace;font-size:8px;color:#7C89A6;padding-bottom:10px;border-bottom:1px solid #232E48;">
+            <span>ПАРАМЕТР</span><span style="text-align:right;">ВИ</span><span style="text-align:right;">ОПОНЕНТ</span>
+          </div>
+          <div class="pvp-row" style="display:grid;grid-template-columns:1fr auto auto;gap:10px 16px;padding:12px 0;font-family:'Press Start 2P',monospace;font-size:9px;">
+            <span style="color:#C7D3EC;">ДОВІРА</span><span style="text-align:right;color:#FFD24A;">61</span><span style="text-align:right;color:#7C89A6;">54</span>
+          </div>
+          <div class="pvp-row" style="display:grid;grid-template-columns:1fr auto auto;gap:10px 16px;padding:12px 0;font-family:'Press Start 2P',monospace;font-size:9px;">
+            <span style="color:#C7D3EC;">ОХОПЛЕННЯ</span><span style="text-align:right;color:#4AE0E0;">3.2K</span><span style="text-align:right;color:#7C89A6;">2.9K</span>
+          </div>
+          <div class="pvp-row" style="display:grid;grid-template-columns:1fr auto auto;gap:10px 16px;padding:12px 0;font-family:'Press Start 2P',monospace;font-size:9px;">
+            <span style="color:#C7D3EC;">УТИЛІТИ</span><span style="text-align:right;color:#9B6BFF;">4</span><span style="text-align:right;color:#7C89A6;">5</span>
+          </div>
+          <div class="pvp-row" style="display:grid;grid-template-columns:1fr auto auto;gap:10px 16px;padding:12px 0;font-family:'Press Start 2P',monospace;font-size:9px;">
+            <span style="color:#C7D3EC;">ЗАХИСТ</span><span style="text-align:right;color:#FF4A4A;">ПРОБ.</span><span style="text-align:right;color:#7C89A6;">72</span>
+          </div>
+          <div style="display:flex;justify-content:center;margin-top:18px;min-height:44px;align-items:center;">
+            <div id="pvp-stamp" class="stamp stamp--break" style="font-family:'Press Start 2P',monospace;font-size:22px;border:3px solid currentColor;padding:8px 16px;">ПРОБИТО</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;">
+          <button id="b-pvp" class="btn btn--cyan" style="font-family:'Press Start 2P',monospace;font-size:10px;">▶ ВІДТВОРИТИ</button>
+          <button id="b-pvp-v" class="btn btn--gold" style="font-family:'Press Start 2P',monospace;font-size:10px;">ВЕРДИКТ: ПРОБИТО ⇄</button>
+        </div>
+      </div>
+      <div class="code-wrap" data-code="pvp"></div>
+    </section>
+
+    <p style="font-size:11px;color:#546079;text-align:center;margin:8px 0 0;line-height:1.8;">Усі анімації — лише <code style="color:#7C89A6;">transform</code>/<code style="color:#7C89A6;">opacity</code> · без filter-анімацій на великих площах · <code style="color:#7C89A6;">prefers-reduced-motion</code> вимикає рух · оверлеї нічого не ламають у розмітці.</p>
+  </div>
+
+  <!-- ============ CRT-ОВЕРЛЕЇ (з design-tokens.css) ============ -->
+  <div class="crt-warm" aria-hidden="true"></div>
+  <div class="crt-noise" aria-hidden="true"></div>
+  <div class="crt-scanlines" aria-hidden="true"></div>
+  <div class="crt-vignette" aria-hidden="true"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount(){
+    const R = document.getElementById('lab');
+    // ---- Джерело правди для стилів і код-панелей ----
+    const CSS = this.buildCSS();
+    const JS  = this.buildJS();
+
+    // 1) інжектимо реальні стилі гри (окрім .reduced — це лише для лабы-тумблера)
+    const st = document.createElement('style');
+    st.id = 'crt-runtime-css';
+    st.textContent = Object.values(CSS).join('\n\n') +
+      '\n/* lab-only */\n.reduced *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}';
+    document.head.appendChild(st);
+
+    // 2) будуємо код-панелі (CSS + JS сніпети) з коментарями
+    const blocks = {
+      tokens:  [['CSS · design-tokens.css', CSS.tokens]],
+      boot:    [['CSS', CSS.boot], ['JS · виклик при вході на екран', JS.boot]],
+      wipe:    [['CSS', CSS.wipe], ['JS · wipeTo(swapFn)', JS.wipe]],
+      buttons: [['CSS', CSS.buttons]],
+      card:    [['CSS', CSS.card], ['JS · поява та позначення загрози', JS.card]],
+      scale:   [['CSS', CSS.scale], ['JS · setInfluence(el, 0..100)', JS.scale]],
+      pvp:     [['CSS', CSS.pvp], ['JS · playReport(root, verdict)', JS.pvp]],
+    };
+    R.querySelectorAll('.code-wrap').forEach(w=>{
+      const key = w.getAttribute('data-code');
+      (blocks[key]||[]).forEach(([label, code])=> w.appendChild(this.codePanel(label, code)));
+    });
+
+    // 3) reduced-motion тумблер (лаба)
+    const rmBtn = R.querySelector('#rm-toggle');
+    rmBtn.addEventListener('click', ()=>{
+      const on = R.classList.toggle('reduced');
+      rmBtn.textContent = on ? 'РУХ: ВИМК' : 'РУХ: УВІМК';
+    });
+
+    // ================= ДЕМО-ЛОГІКА =================
+    // 02 boot
+    const boot = ()=>{
+      const box = R.querySelector('#d-boot');
+      box.classList.remove('booting'); void box.offsetWidth; box.classList.add('booting');
+      R.querySelectorAll('#d-boot .boot-line').forEach((l,i)=>{
+        l.classList.remove('on'); void l.offsetWidth;
+        setTimeout(()=> l.classList.add('on'), 30 + i*40);
+      });
+    };
+    R.querySelector('#b-boot').addEventListener('click', boot);
+
+    // 03 wipe
+    let wipeState = 0;
+    const wipeLabels = ['ЕКРАН · СТРІЧКА', 'ЕКРАН · PvP-ЗВІТ', 'ЕКРАН · УТИЛІТИ'];
+    const wipeColors = ['#FFD24A', '#4AE0E0', '#9B6BFF'];
+    R.querySelector('#b-wipe').addEventListener('click', ()=>{
+      const ovl = R.querySelector('#wipe-ovl'), pane = R.querySelector('#wipe-pane');
+      ovl.classList.remove('run'); void ovl.offsetWidth; ovl.classList.add('run');
+      const reduced = R.classList.contains('reduced') || matchMedia('(prefers-reduced-motion:reduce)').matches;
+      setTimeout(()=>{ wipeState=(wipeState+1)%wipeLabels.length;
+        pane.textContent=wipeLabels[wipeState];
+        pane.style.color=wipeColors[wipeState];
+        pane.style.textShadow='0 0 4px currentColor,0 0 14px currentColor';
+      }, reduced?0:150);
+    });
+
+    // 05 card
+    const card = R.querySelector('#d-card');
+    const cardAppear = ()=>{ card.classList.remove('appear'); void card.offsetWidth; card.classList.add('appear'); };
+    R.querySelector('#b-card-appear').addEventListener('click', cardAppear);
+    R.querySelector('#b-card-threat').addEventListener('click', (e)=>{
+      const on = card.classList.toggle('is-threat');
+      e.currentTarget.textContent = on ? '✓ ЗНЯТИ ПОЗНАЧКУ' : '⚑ ПОЗНАЧИТИ ЗАГРОЗУ';
+      if(on){ card.classList.remove('glitch'); void card.offsetWidth; card.classList.add('glitch');
+        card.addEventListener('animationend', ()=>card.classList.remove('glitch'), {once:true}); }
+    });
+
+    // 06 scale
+    const scaleEl = R.querySelector('#d-scale'), scaleVal = R.querySelector('#scale-val');
+    const setInfluence = (v)=>{
+      v = Math.max(0, Math.min(100, v));
+      scaleEl.querySelector('.infl-fill').style.transform = 'scaleX(' + (v/100) + ')';
+      const danger = v > 75;
+      scaleEl.classList.toggle('danger', danger);
+      scaleVal.textContent = Math.round(v);
+      scaleVal.style.color = danger ? '#FF4A4A' : '#FFD24A';
+      scaleVal.style.textShadow = danger ? '0 0 4px rgba(255,74,74,.6),0 0 16px rgba(255,60,60,.32)' : '0 0 4px rgba(255,210,74,.55)';
+    };
+    R.querySelectorAll('.b-scale').forEach(b=> b.addEventListener('click', ()=> setInfluence(+b.dataset.v)));
+    requestAnimationFrame(()=> setInfluence(30));
+
+    // 07 pvp
+    let verdict = 'break';
+    const playReport = ()=>{
+      const rows = [...R.querySelectorAll('#d-pvp .pvp-row')];
+      const stamp = R.querySelector('#pvp-stamp');
+      stamp.classList.remove('hit'); stamp.style.opacity='0';
+      rows.forEach(r=> r.classList.remove('on'));
+      const reduced = R.classList.contains('reduced') || matchMedia('(prefers-reduced-motion:reduce)').matches;
+      rows.forEach((r,i)=>{ void r.offsetWidth; setTimeout(()=> r.classList.add('on'), reduced?0:120 + i*180); });
+      setTimeout(()=>{ stamp.style.opacity=''; stamp.classList.remove('hit'); void stamp.offsetWidth; stamp.classList.add('hit'); },
+        reduced?0:120 + rows.length*180 + 120);
+    };
+    const applyVerdict = ()=>{
+      const stamp = R.querySelector('#pvp-stamp');
+      const brk = verdict==='break';
+      stamp.className = 'stamp ' + (brk?'stamp--break':'stamp--hold');
+      stamp.textContent = brk ? 'ПРОБИТО' : 'ВСТОЯВ';
+    };
+    R.querySelector('#b-pvp').addEventListener('click', playReport);
+    R.querySelector('#b-pvp-v').addEventListener('click', (e)=>{
+      verdict = verdict==='break' ? 'hold' : 'break';
+      e.currentTarget.textContent = 'ВЕРДИКТ: ' + (verdict==='break'?'ПРОБИТО':'ВСТОЯВ') + ' ⇄';
+      applyVerdict(); playReport();
+    });
+    applyVerdict();
+
+    // перший показ
+    requestAnimationFrame(()=>{ boot(); setTimeout(playReport, 400); });
+  }
+
+  // -------- код-панель з кнопкою копіювання --------
+  codePanel(label, code){
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'border-top:1px solid #232E48;background:#0A0E18;';
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-bottom:1px solid #17202F;';
+    const tag = document.createElement('span');
+    tag.textContent = label;
+    tag.style.cssText = "font-family:'Press Start 2P',monospace;font-size:8px;color:#546079;letter-spacing:1px;";
+    const btn = document.createElement('button');
+    btn.textContent = 'КОПІЮВАТИ';
+    btn.className = 'btn btn--cyan';
+    btn.style.cssText = "font-family:'Press Start 2P',monospace;font-size:8px;padding:7px 11px;";
+    btn.addEventListener('click', ()=>{
+      const done = ()=>{ btn.textContent='СКОПІЙОВАНО ✓'; setTimeout(()=> btn.textContent='КОПІЮВАТИ', 1400); };
+      if(navigator.clipboard){ navigator.clipboard.writeText(code).then(done, ()=>this.fallbackCopy(code,done)); }
+      else this.fallbackCopy(code, done);
+    });
+    bar.appendChild(tag); bar.appendChild(btn);
+    const pre = document.createElement('pre');
+    pre.textContent = code;
+    pre.style.cssText = 'margin:0;padding:16px 18px;max-height:340px;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.6;color:#8FA6C8;white-space:pre;';
+    wrap.appendChild(bar); wrap.appendChild(pre);
+    return wrap;
+  }
+  fallbackCopy(text, done){
+    const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} ta.remove(); done&&done();
+  }
+
+  // ============ CSS-СНІПЕТИ (єдине джерело правди) ============
+  buildCSS(){
+    const noise = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E";
+    return {
+tokens:
+`/* === design-tokens.css ===================================================
+   Підключати ПЕРШИМ, до решти стилів гри.
+   Оверлеї чіпляти в кінець кореневого контейнера гри (напр. <div id="app">)
+   або одразу в <body>: 4 елементи position:fixed; pointer-events:none —
+   вони НЕ впливають на розмітку. */
+:root{
+  --bg:#0B0F1A;  --panel:#131A2B;
+  --gold:#FFD24A; --red:#FF4A4A; --violet:#9B6BFF; --cyan:#4AE0E0;
+  --ink:#EAF2FF;  --muted:#7C89A6;
+  /* тепле фосфорне свічення (2 шари: гострий + м'який теплий ореол) */
+  --glow-gold:0 0 4px rgba(255,210,74,.55), 0 0 14px rgba(255,168,40,.30);
+  --glow-cyan:0 0 4px rgba(74,224,224,.55), 0 0 14px rgba(50,200,210,.28);
+  --glow-red:0 0 4px rgba(255,74,74,.60),  0 0 16px rgba(255,60,60,.32);
+  --glow-violet:0 0 4px rgba(155,107,255,.60), 0 0 16px rgba(140,90,255,.32);
+}
+/* хелпери для тексту зі свіченням — навішувати на заголовки/цифри */
+.glow-gold{ color:var(--gold); text-shadow:var(--glow-gold); }
+.glow-cyan{ color:var(--cyan); text-shadow:var(--glow-cyan); }
+.glow-red { color:var(--red);  text-shadow:var(--glow-red);  }
+.glow-vlt { color:var(--violet); text-shadow:var(--glow-violet); }
+
+/* ---- CRT-оверлеї: кожен position:fixed; pointer-events:none ---- */
+.crt-vignette,.crt-scanlines,.crt-noise,.crt-warm{
+  position:fixed; inset:0; pointer-events:none;
+}
+/* віньєтка — темні кути «трубки» */
+.crt-vignette{ z-index:9997;
+  background:radial-gradient(125% 125% at 50% 50%,
+     transparent 55%, rgba(0,0,0,.28) 82%, rgba(0,0,0,.55) 100%); }
+/* тепла фосфорна температура (легкий теплий центр, blend screen) */
+.crt-warm{ z-index:9996; mix-blend-mode:screen;
+  background:radial-gradient(100% 100% at 50% 32%,
+     rgba(255,180,80,.06), transparent 60%); }
+/* scanline + легке мерехтіння — анімуємо ЛИШЕ opacity (GPU, дешево) */
+.crt-scanlines{ z-index:9998; opacity:.5; will-change:opacity;
+  background:repeating-linear-gradient(to bottom,
+     rgba(0,0,0,.30) 0 1px, transparent 1px 3px);
+  animation:crtFlicker 3.4s steps(60) infinite; }
+@keyframes crtFlicker{
+  0%,100%{opacity:.42} 48%{opacity:.5} 50%{opacity:.34}
+  52%{opacity:.5} 70%{opacity:.44} 72%{opacity:.5} }
+/* дуже тонке зерно: inline-SVG turbulence у самому CSS (без файлу-картинки),
+   статичне → не анімуємо велику площу */
+.crt-noise{ z-index:9995; opacity:.05; mix-blend-mode:overlay;
+  background-image:url("${noise}"); background-size:150px 150px; }
+
+@media (prefers-reduced-motion:reduce){
+  .crt-scanlines{ animation:none; opacity:.42; }
+}`,
+
+boot:
+`/* === Завантаження екрана: «термінал прокидається» =========================
+   HTML: контейнер екрана + рядки контенту з класом .boot-line
+     <div class="screen booting">
+        <div class="boot-line">…</div> …
+     </div>
+   Тривалість: CRT-спалах ~180мс, кожен рядок 150мс (стагер задає JS). */
+.booting{ animation:bootFlicker 180ms steps(8) 1 both; }
+@keyframes bootFlicker{
+  0%{opacity:0} 15%{opacity:.7} 25%{opacity:.22}
+  45%{opacity:1} 55%{opacity:.5} 100%{opacity:1} }
+
+.boot-line{ opacity:0; transform:translateY(-6px); }
+.boot-line.on{ animation:bootLineIn 150ms ease-out both; }
+@keyframes bootLineIn{
+  0%{opacity:0; transform:translateY(-6px)}
+  55%{opacity:1}
+  100%{opacity:1; transform:none} }
+
+@media (prefers-reduced-motion:reduce){
+  .booting{ animation:none; }
+  .boot-line,.boot-line.on{ opacity:1; transform:none; animation:none; }
+}`,
+
+wipe:
+`/* === Перехід між екранами: горизонтальний wipe ============================
+   Один спільний оверлей всередині контейнера гри (position:relative у нього):
+     <div class="wipe" aria-hidden="true"></div>
+   Тільки transform:scaleX — світлова смуга проходить зліва направо. */
+.wipe{
+  position:absolute; inset:0; z-index:50; pointer-events:none;
+  transform:scaleX(0); transform-origin:left center;
+  background:linear-gradient(90deg,
+     rgba(74,224,224,0), rgba(74,224,224,.14) 42%,
+     var(--cyan) 50%, rgba(74,224,224,.14) 58%, rgba(74,224,224,0));
+  box-shadow:var(--glow-cyan); }
+.wipe.run{ animation:wipeSweep 300ms ease-in-out 1 both; }
+@keyframes wipeSweep{
+  0%  {transform:scaleX(0); transform-origin:left center}
+  49% {transform:scaleX(1); transform-origin:left center}
+  50% {transform:scaleX(1); transform-origin:right center}
+  100%{transform:scaleX(0); transform-origin:right center} }
+
+@media (prefers-reduced-motion:reduce){ .wipe.run{ animation:none; } }`,
+
+buttons:
+`/* === Кнопки ==============================================================
+   База .btn; варіанти .btn--gold / .btn--cyan / .btn--feedback(фіолет).
+   Пульс свічення — box-shadow на малому елементі (не filter), 60fps ок. */
+.btn{
+  font-family:inherit; font-size:11px; letter-spacing:1px;
+  color:var(--ink); background:var(--panel);
+  border:2px solid #2A3550; padding:12px 16px; cursor:pointer;
+  transition:transform 90ms ease, box-shadow 160ms ease, border-color 160ms; }
+.btn:hover{ border-color:var(--cyan); box-shadow:var(--glow-cyan);
+  animation:btnPulse 1.4s ease-in-out infinite; }
+.btn:active{ transform:scale(.96); }
+@keyframes btnPulse{ 0%,100%{box-shadow:0 0 4px rgba(74,224,224,.40)}
+  50%{box-shadow:0 0 5px rgba(74,224,224,.65),0 0 18px rgba(74,224,224,.40)} }
+
+.btn--gold{ color:var(--gold); border-color:#5A4A18; text-shadow:var(--glow-gold); }
+.btn--gold:hover{ border-color:var(--gold); box-shadow:var(--glow-gold);
+  animation-name:btnPulseGold; }
+@keyframes btnPulseGold{ 0%,100%{box-shadow:0 0 4px rgba(255,210,74,.40)}
+  50%{box-shadow:0 0 5px rgba(255,210,74,.65),0 0 18px rgba(255,168,40,.40)} }
+
+.btn--cyan{ color:var(--cyan); border-color:#205050; text-shadow:var(--glow-cyan); }
+
+/* фіолетова кнопка ФІДБЕК — окремий утилітний акцент */
+.btn--feedback{ color:var(--violet); border-color:#3A2A66; text-shadow:var(--glow-violet); }
+.btn--feedback:hover{ border-color:var(--violet); box-shadow:var(--glow-violet);
+  animation-name:btnPulseViolet; }
+@keyframes btnPulseViolet{ 0%,100%{box-shadow:0 0 4px rgba(155,107,255,.45)}
+  50%{box-shadow:0 0 5px rgba(155,107,255,.70),0 0 20px rgba(140,90,255,.45)} }
+
+@media (prefers-reduced-motion:reduce){
+  .btn,.btn:hover{ animation:none; transition:none; } }`,
+
+card:
+`/* === Картка повідомлення стрічки =========================================
+   HTML: <article class="feed-card"> … заголовок .feed-title … </article>
+   Поява:  додати клас .appear  (typing-мерехтіння)
+   Загроза: додати клас .is-threat (червона рамка);
+            разом із ним ОДИН короткий .glitch — JS зніме по animationend. */
+.feed-card{ background:var(--panel); border:2px solid #232E48;
+  padding:14px 16px; color:var(--ink); position:relative; }
+
+.feed-card.appear{ animation:cardAppear 260ms steps(6) 1 both; }
+@keyframes cardAppear{ 0%{opacity:0} 20%{opacity:.4} 40%{opacity:.14}
+  60%{opacity:.8} 80%{opacity:.35} 100%{opacity:1} }
+
+.feed-card.is-threat{ border-color:var(--red); box-shadow:var(--glow-red); }
+.feed-card.is-threat .feed-title{ color:var(--red); text-shadow:var(--glow-red); }
+
+/* один короткий глітч-імпульс (лише transform — не смикає сусідів) */
+.feed-card.glitch{ animation:cardGlitch 170ms steps(3) 1 both; }
+@keyframes cardGlitch{ 0%{transform:translateX(0)} 20%{transform:translateX(-4px)}
+  45%{transform:translateX(3px)} 70%{transform:translateX(-2px)} 100%{transform:translateX(0)} }
+
+@media (prefers-reduced-motion:reduce){
+  .feed-card.appear,.feed-card.glitch{ animation:none; opacity:1; transform:none; } }`,
+
+scale:
+`/* === Шкала впливу ========================================================
+   HTML: <div class="infl">
+            <div class="infl-fill"></div>
+            <div class="infl-warn"></div>
+         </div>
+   Значення 0..100 → transform:scaleX (НЕ width → без reflow, плавно).
+   Червона зона (>75): додати клас .danger на .infl (див. JS). */
+.infl{ position:relative; height:18px; background:#0E1424;
+  border:2px solid #232E48; overflow:hidden; }
+.infl-fill{ position:absolute; inset:0; transform-origin:left center;
+  transform:scaleX(0);
+  transition:transform 600ms cubic-bezier(.22,.61,.36,1);
+  background:linear-gradient(90deg, var(--cyan), var(--gold)); }
+/* попереджувальний шар — пульсує лише opacity */
+.infl-warn{ position:absolute; inset:0; opacity:0;
+  background:var(--red); mix-blend-mode:screen; }
+.infl.danger .infl-fill{ background:linear-gradient(90deg, var(--gold), var(--red)); }
+.infl.danger .infl-warn{ animation:inflPulse 700ms ease-in-out infinite; }
+@keyframes inflPulse{ 0%,100%{opacity:0} 50%{opacity:.38} }
+
+@media (prefers-reduced-motion:reduce){
+  .infl-fill{ transition:none; }
+  .infl.danger .infl-warn{ animation:none; opacity:.22; } }`,
+
+pvp:
+`/* === Екран PvP-звіту =====================================================
+   HTML: рядки таблиці .pvp-row (JS додає .on послідовно);
+         печатка вердикту:
+           <div class="stamp stamp--break">ПРОБИТО</div>  (червона)
+           <div class="stamp stamp--hold">ВСТОЯВ</div>     (золота)
+         JS додає .hit — удар печаткою (scale + glow). */
+.pvp-row{ opacity:0; transform:translateY(8px); }
+.pvp-row.on{ animation:pvpRow 220ms ease-out 1 both; }
+@keyframes pvpRow{ 0%{opacity:0; transform:translateY(8px)}
+  100%{opacity:1; transform:none} }
+
+.stamp{ opacity:0; transform:scale(2.4) rotate(-8deg); }
+.stamp--break{ color:var(--red);  text-shadow:var(--glow-red);  }
+.stamp--hold { color:var(--gold); text-shadow:var(--glow-gold); }
+.stamp.hit{ animation:stampHit 360ms cubic-bezier(.2,1.5,.3,1) 1 both; }
+@keyframes stampHit{
+  0%  {opacity:0; transform:scale(2.4) rotate(-8deg)}
+  60% {opacity:1; transform:scale(.90) rotate(-8deg)}
+  100%{opacity:1; transform:scale(1)   rotate(-8deg)} }
+
+@media (prefers-reduced-motion:reduce){
+  .pvp-row,.pvp-row.on{ opacity:1; transform:none; animation:none; }
+  .stamp,.stamp.hit{ opacity:1; transform:none; animation:none; } }`
+    };
+  }
+
+  // ============ JS-СНІПЕТИ (для копіювання; поведінку демо роблю тим самим) ==
+  buildJS(){
+    return {
+boot:
+`// Викликати при вході на екран. screen — контейнер із класами .boot-line всередині.
+function bootScreen(screen){
+  screen.classList.remove('booting');
+  void screen.offsetWidth;              // reflow → перезапуск анімації
+  screen.classList.add('booting');      // CRT-спалах ~180мс
+  screen.querySelectorAll('.boot-line').forEach((line, i) => {
+    line.classList.remove('on');
+    void line.offsetWidth;
+    setTimeout(() => line.classList.add('on'), 30 + i * 40); // рядки зверху вниз
+  });
+}`,
+
+wipe:
+`// Горизонтальний wipe. container — має position:relative і .wipe всередині.
+// swap() викликається на піку (екран закрито смугою) — там міняємо контент.
+function wipeTo(container, swap){
+  const ovl = container.querySelector('.wipe');
+  ovl.classList.remove('run');
+  void ovl.offsetWidth;
+  ovl.classList.add('run');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(swap, reduced ? 0 : 150); // 150мс = ~середина 300мс sweep
+}`,
+
+card:
+`// Поява картки зі стрічки.
+function showCard(card){
+  card.classList.remove('appear');
+  void card.offsetWidth;
+  card.classList.add('appear');
+}
+// Позначити як загрозу: червона рамка + ОДИН короткий глітч.
+function markThreat(card){
+  card.classList.add('is-threat');
+  card.classList.remove('glitch');
+  void card.offsetWidth;
+  card.classList.add('glitch');
+  card.addEventListener('animationend',
+    () => card.classList.remove('glitch'), { once:true });
+}`,
+
+scale:
+`// Плавно виставити вплив 0..100. У червоній зоні (>75) — пульс тривоги.
+function setInfluence(inflEl, value){
+  value = Math.max(0, Math.min(100, value));
+  inflEl.querySelector('.infl-fill').style.transform = 'scaleX(' + value/100 + ')';
+  inflEl.classList.toggle('danger', value > 75); // вмикає inflPulse
+}`,
+
+pvp:
+`// PvP-звіт: рядки послідовно, потім удар печаткою вердикту.
+function playReport(root, verdict /* 'break' | 'hold' */){
+  const rows  = root.querySelectorAll('.pvp-row');
+  const stamp = root.querySelector('.stamp');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  stamp.className = 'stamp ' + (verdict === 'break' ? 'stamp--break' : 'stamp--hold');
+  stamp.textContent = verdict === 'break' ? 'ПРОБИТО' : 'ВСТОЯВ';
+  stamp.style.opacity = '0';
+
+  rows.forEach((r, i) => {
+    r.classList.remove('on');
+    void r.offsetWidth;
+    setTimeout(() => r.classList.add('on'), reduced ? 0 : 120 + i * 180);
+  });
+  setTimeout(() => {
+    stamp.style.opacity = '';
+    void stamp.offsetWidth;
+    stamp.classList.add('hit');          // scale + glow «печатка»
+  }, reduced ? 0 : 120 + rows.length * 180 + 120);
+}`
+    };
+  }
+}
+</script>
+</body>
+</html>

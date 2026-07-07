@@ -4,6 +4,7 @@
 const app = document.getElementById('app');
 /* Фіче-флаги / конфіг */
 const ENABLE_CREATOR = false;   // true → показати вхід у режим Червона команда (кріейтор). Loader ?pack= працює завжди.
+const SHOW_FEEDBACK_BTN = true;   // false → сховати і плаваючу кнопку ФІДБЕК, і CTA на фіналі
 const FEEDBACK_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeDB4fjDf7NMWksBCaX9ReWMuy1Y6vgP0ns7f4aOEskyrynEA/viewform?usp=header';
 /* Кнопка-лінк на фідбек (фінальний CTA). Завжди нова вкладка — стан гри не переривається. */
 function feedbackLink(label){
@@ -44,15 +45,50 @@ const SFX = (function(){
       if(p>=1){ clearInterval(el._fadeInt); el._fadeInt=null; if(target===0){ try{ el.pause(); }catch(e){} } }
     }, 50);
   }
+  /* ФІКС 1: короткі sfx (click/tick/alert/gain/loss/badge/result) через Web
+     Audio — createBufferSource стартує без latency нового HTMLAudioElement
+     на кожен виклик. Музичні треки (ambient/boss/intro) лишаються на
+     <audio>+fadeTo вище, не займаємо.
+     Один AudioContext створюється одразу тут (створення контексту без
+     жесту користувача дозволене всюди — лише .resume() вимагає жест, і
+     він викликається саме в unlock() нижче), щоб префетч буферів стартував
+     негайно при завантаженні скрипта, а не чекав першого тапу. */
+  let actx = null;
+  const buffers = {};   // name -> AudioBuffer; заповнюється асинхронно, поки порожньо — фолбек на new Audio
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(Ctx) actx = new Ctx();
+  }catch(e){ actx = null; }
+  if(actx){
+    Object.keys(SFX_FILES).forEach(name=>{
+      fetch(SFX_FILES[name])
+        .then(r=>{ if(!r.ok) throw new Error('sfx fetch failed'); return r.arrayBuffer(); })
+        .then(buf=>actx.decodeAudioData(buf))
+        .then(decoded=>{ buffers[name] = decoded; })
+        .catch(()=>{});   // файлу може не бути — мовчки лишаємось на фолбеку
+    });
+  }
   function unlock(){                          // перший клік користувача знімає блокування автоплею
     if(unlocked) return; unlocked = true;
     if(ambientWanted && ambient.paused) ambient.play().catch(()=>{});
     if(introWanted && introMusic.paused) introMusic.play().catch(()=>{});
+    if(actx && actx.state === 'suspended') actx.resume().catch(()=>{});
   }
   function play(name){
     if(muted) return;
-    const src = SFX_FILES[name]; if(!src) return;
-    try{ const a = new Audio(src); a.volume = 0.55; a.play().catch(()=>{}); }catch(e){}
+    const buf = buffers[name];
+    if(buf && actx){
+      try{
+        const src = actx.createBufferSource(); src.buffer = buf;
+        const g = actx.createGain(); g.gain.value = 0.55;
+        src.connect(g); g.connect(actx.destination);
+        src.start(0);
+        return;
+      }catch(e){ /* провалюємось у фолбек нижче */ }
+    }
+    // Буфер ще не догрузився (або Web Audio недоступний) — старий шлях, тихо і без помилок.
+    const srcUrl = SFX_FILES[name]; if(!srcUrl) return;
+    try{ const a = new Audio(srcUrl); a.volume = 0.55; a.play().catch(()=>{}); }catch(e){}
   }
   /* .paused-перевірка: повторний виклик не має ще раз смикати play() на вже граючому треку. */
   function startAmbient(){
@@ -196,12 +232,24 @@ function advanceHintQueue(){
   requestAnimationFrame(()=>wrap.classList.add('show'));
 }
 
+/* design/crt-lab.html блок 06: setInfluence(inflEl, value) — портовано як є
+   (clamp, transform:scaleX, danger>75). value тут = edge = 100-S.infl, тобто
+   яка частка шкали зайнята ВОРОГОМ: це та сама величина, яку раніше показував
+   clip-path fill (видима ширина зліва), і саме вона має сенс для тривоги
+   ">75" — 75%+ шкали під ворогом, а не сирий S.infl (де високе значення
+   означає, що ГРАВЕЦЬ виграє, і "danger" на високому S.infl був би зворотним
+   до сенсу). */
+function setInfluence(inflEl, value){
+  value = Math.max(0, Math.min(100, value));
+  inflEl.querySelector('.infl-fill').style.transform = 'scaleX(' + value/100 + ')';
+  inflEl.classList.toggle('danger', value > 75);
+}
 function setInfl(delta,label,sfx){
   S.infl = clamp(S.infl + delta);
-  const m = document.getElementById('inflMarker'), f = document.getElementById('inflFill'), n = document.getElementById('inflNum');
+  const m = document.getElementById('inflMarker'), n = document.getElementById('inflNum');
   const edge = 100 - S.infl;   // позиція лінії фронту: червоне зліва займає (100-infl)%
   m.style.left = 'calc('+edge+'% - 3px)';
-  f.style.clipPath = 'inset(0 '+S.infl+'% 0 0)';
+  setInfluence(document.querySelector('.infl'), edge);
   n.textContent = S.infl;
   n.style.left = Math.max(6, Math.min(94, edge))+'%';
   document.querySelector('.infl').classList.toggle('critical', S.infl<=12);
@@ -225,6 +273,22 @@ function setRep(delta){
   if(S.i===0) showHint('rep_change');
   hud();
 }
+/* Задача 4, мікроанімація 1/5: швидкий тік замість миттєвого стрибка числа.
+   Лише textContent-степінг (transform/opacity не застосовні до цифр), тому
+   поза списком "лише transform/opacity" — та й сам степінг дешевий, не
+   зачіпає layout/paint великих площ. */
+function tickValue(el, from, to, formatter){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){ el.textContent = formatter(to); return; }
+  if(from===to){ el.textContent = formatter(to); return; }
+  const steps = Math.min(8, Math.max(3, Math.round(Math.abs(to-from)/3)));
+  let i = 0;
+  const int = setInterval(()=>{
+    i++;
+    el.textContent = formatter(i>=steps ? to : from + (to-from)*(i/steps));
+    if(i>=steps) clearInterval(int);
+  }, 40);
+}
+let _prevBadgeCount = 0;
 function hud(){
   const st=document.getElementById('hudStreak'), rp=document.getElementById('hudRep'), bd=document.getElementById('hudBadges');
   if(!st) return;
@@ -233,9 +297,25 @@ function hud(){
   let mult = S.streak>=5?' ×2':(S.streak>=3?' ×1.5':'');
   st.textContent = 'СЕРІЯ '+S.streak+mult;
   st.className = 'streak'+(S.streak>=3?'':' cold');
-  rp.textContent = 'ДОВІРА '+S.rep;
+  const prevRep = parseInt((rp.textContent.match(/\d+/)||[0])[0]);
+  tickValue(rp, prevRep, S.rep, v=>'ДОВІРА '+Math.round(v));
   rp.className = 'rep'+(S.rep<50?' low':'');
-  bd.innerHTML = '<span>'+SCENARIOS.map(sc=>S.badges.includes(sc.badge)?'▣':'▢').join('')+'</span>';
+  // Задача 4, мікроанімація 2/5: бейдж щойно розкритої техніки — "печатка"
+  // (scale 1.15→1 + один glow-імпульс), лише на тому бейджі, що саме з'явився.
+  bd.innerHTML = SCENARIOS.map(sc=>{
+    const got = S.badges.includes(sc.badge);
+    return '<span class="badge-ico'+(got?' got':'')+'">'+(got?'▣':'▢')+'</span>';
+  }).join('');
+  if(S.badges.length > _prevBadgeCount){
+    const idx = SCENARIOS.findIndex(sc=>sc.badge===S.badges[S.badges.length-1]);
+    const spans = bd.querySelectorAll('.badge-ico');
+    if(idx>=0 && spans[idx]){
+      const el = spans[idx];
+      el.classList.remove('stamp'); void el.offsetWidth; el.classList.add('stamp');
+      el.addEventListener('animationend', ()=>el.classList.remove('stamp'), {once:true});
+    }
+  }
+  _prevBadgeCount = S.badges.length;
 }
 /* M5: черга тостів — активний тост дограє свій час, наступний чекає в масиві
    й показується після нього, замість того щоб перебивати поточний. */
@@ -256,7 +336,74 @@ function processToastQueue(){
   }, 1700);
 }
 function prog(){ document.getElementById('prog').textContent = (S.i+1)+'/'+SCENARIOS.length; }
-function render(html){ stopAllTimers(); stopBossGlitch(); document.querySelectorAll('.osint-modal').forEach(e=>e.remove()); document.querySelectorAll('.hint-panel').forEach(e=>e.remove()); document.querySelectorAll('.hint-focus').forEach(e=>e.classList.remove('hint-focus')); hintQueue=[]; hintBusy=false; toastQueue=[]; app.innerHTML = '<div class="screen">'+html+'</div>'; window.scrollTo({top:0}); }
+/* ===== блок 08: glitch-перехід (замінює блок 03/wipe за прямою вказівкою
+   брифу — сніпета в лабі нема, це авторський код за функціональним описом,
+   не порт). Той самий архітектурний компроміс, що раніше був у wipeTo():
+   render() має ~20 місць виклику, де код одразу після нього синхронно
+   чіпляється до щойно вставленого DOM (startTimer, initGlitch, showHint-
+   фокус, ревіл стрічки) — затримка справжньої підміни контенту зламала б
+   усі ці місця. Тому глітч грає на ВЖЕ підміненому екрані (звук/логіка не
+   чекають), а callback() викликається одразу — за фактом просто послідовність
+   "запустити глітч, потім зробити те, що йде далі" (у нас це bootScreen). */
+function glitchTransition(callback){
+  const screen = document.querySelector('.screen');
+  if(screen){ screen.classList.remove('glitching'); void screen.offsetWidth; screen.classList.add('glitching'); }
+  callback();
+}
+/* ===== design/crt-lab.html блок 02: «термінал прокидається» (портовано як є) =====
+   screen — контейнер із класами .boot-line всередині. Тут .boot-line немає
+   окремим класом ніде в грі, тож замість нього стагеруємо ПРЯМІ діти
+   .screen (селектор .screen.booting>* у CSS) — кожен екран і так складений
+   з верхньорівневих блоків (eyebrow/h2/task/картки/кнопки), вони й стають
+   "рядками", що виринають зверху вниз. Тексти рядків скорочено ефективно
+   до 3-4: далі індекс стагера не росте, решта дітей виринає одночасно
+   з четвертим — довгі екрани не розтягують анімацію.
+   КРИТИЧНО: .booting знімається з .screen одразу після стагера. Без цього
+   CSS-правило .screen.booting>*{opacity:0} лишається живим live-селектором
+   і ховає НАЗАВЖДИ будь-яку кнопку, яку код дописує в .screen ПІЗНІШЕ через
+   insertAdjacentHTML (кнопки "ДАЛІ" у resolveFeed/pickTech/pickCounter/
+   wildPick — саме тому на фазах 1-2 зникала нижня кнопка дії). */
+function bootScreen(screen){
+  screen.classList.remove('booting');
+  void screen.offsetWidth;              // reflow → перезапуск анімації
+  screen.classList.add('booting');      // CRT-спалах ~180мс
+  const CAP = 3;   // максимум 3-4 "рядки" стагера (індекси 0..3)
+  let maxDelay = 0;
+  [...screen.children].forEach((line, i) => {
+    const step = Math.min(i, CAP);
+    const delay = 30 + step * 40;
+    if(delay > maxDelay) maxDelay = delay;
+    line.classList.remove('on');
+    void line.offsetWidth;
+    setTimeout(() => line.classList.add('on'), delay); // рядки зверху вниз, далі — одночасно
+  });
+  setTimeout(() => screen.classList.remove('booting'), maxDelay + 160);
+}
+/* Задача 4, мікроанімація 3/5: картки "РОЗКРИТІ НАРАТИВИ" (.narr-card) —
+   stagger 40-60мс між картками при появі екрана (єдине місце в грі, де
+   кілька карток рендеряться одним блоком без власного живого reveal —
+   стрічка фази 1 вже має свій, набагато повільніший, навмисний таймінг
+   "живих" повідомлень, його не займаємо). */
+function staggerNarrCards(screen){
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  screen.querySelectorAll('.narr-card').forEach((el,i)=>{
+    el.classList.remove('narr-stagger');
+    if(reduced) return;
+    void el.offsetWidth;
+    el.style.animationDelay = (i*50)+'ms';
+    el.classList.add('narr-stagger');
+  });
+}
+function render(html){ stopAllTimers(); stopBossGlitch(); document.querySelectorAll('.osint-modal').forEach(e=>e.remove()); document.querySelectorAll('.hint-panel').forEach(e=>e.remove()); document.querySelectorAll('.hint-focus').forEach(e=>e.classList.remove('hint-focus')); hintQueue=[]; hintBusy=false; toastQueue=[]; app.innerHTML = '<div class="screen">'+html+'</div>'; app.scrollTop = 0; /* фікс 3: скрол тепер у #app, не в body/window */ glitchTransition(()=>{ const scr=app.querySelector('.screen'); bootScreen(scr); staggerNarrCards(scr); }); }
+/* Задача 1: кнопки "ДАЛІ" дописуються в .screen ПІЗНІШЕ, окремо від render().
+   Якщо .booting ще не встиг злетіти з .screen (таймер у bootScreen), нова
+   кнопка теж матиме opacity:0 від .screen.booting>* — тому знімаємо клас
+   тут прямо, а не покладаємось лише на таймер. Без затримки, без гонки. */
+function appendActionBtn(html){
+  const scr = app.querySelector('.screen');
+  scr.classList.remove('booting');
+  scr.insertAdjacentHTML('beforeend', html);
+}
 function shuffled(n){ const a=[...Array(n).keys()]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function stopAllTimers(){ if(timerInt){clearInterval(timerInt);timerInt=null;} if(wtimerInt){clearInterval(wtimerInt);wtimerInt=null;} if(S._viewsInt){clearInterval(S._viewsInt);S._viewsInt=null;} document.body.classList.remove('timer-active'); }
 
@@ -627,7 +774,7 @@ function phaseFeed(){
   S._feedGen = (S._feedGen||0) + 1;       // захист від застарілого ланцюжка reveal, якщо екран змінився
   const gen = S._feedGen;
   render(`
-    <div class="eyebrow">ФАЗА 1 · РОЗПІЗНАЙ</div>
+    <div class="eyebrow phase-title">ФАЗА 1 · РОЗПІЗНАЙ</div>
     ${sc.boss?'<div class="attack-banner glitch-target">⚠ ПІДВИЩЕНА АКТИВНІСТЬ ІПСО</div>':''}
     <div class="task">🎯 <div>Познач <b>усі ворожі наративи</b> й підтверди. Скільки їх, не підказуємо. Хибна тривога теж коштує: бачити ІПСО там, де його нема, це програш іншого типу.</div></div>
     <div class="osint-bar">🛰 <b>OSINT</b> · ПЕРЕВІРКА ДЖЕРЕЛА · лишилось <span id="osintLeft">${S.osintLeft}</span> / ${S.osintTotal}</div>
@@ -638,11 +785,15 @@ function phaseFeed(){
   revealFeed(gen, 0);
 }
 function msgHTML(idx, m, stamp){
-  return '<div class="msg" tabindex="0" role="button" data-i="'+idx+'" data-views="'+parseViews(m.v)+'" data-hostile="'+(m.h?1:0)+'" onclick="pickMsg('+idx+')" onkeydown="if(event.key===\'Enter\')pickMsg('+idx+')">'
+  // design/crt-lab.html блок 05: клас .appear одразу в розмітці — елемент новий
+  // при вставці (insertAdjacentHTML у revealFeed), окремий JS-тригер не потрібен.
+  // Задача 4, мікроанімація 5: лічильник переглядів рендериться з "0" —
+  // revealFeed() відразу після вставки тікає його вгору до справжнього m.v.
+  return '<div class="msg appear" tabindex="0" role="button" data-i="'+idx+'" data-views="'+parseViews(m.v)+'" data-hostile="'+(m.h?1:0)+'" onclick="pickMsg('+idx+')" onkeydown="if(event.key===\'Enter\')pickMsg('+idx+')">'
     + '<div class="msg-head"><span class="msg-author">'+m.a+'</span><span class="msg-tools"><span class="msg-meta">'+stamp+'</span><button class="osint-btn" data-i="'+idx+'" title="OSINT: перевірити джерело" onclick="event.stopPropagation();osintOpen('+idx+')" onkeydown="event.stopPropagation()">🔍</button></span></div>'
     + (m.flagged ? '<div class="msg-flag">⚠ МОДЕРАЦІЯ ВЖЕ ПОЗНАЧИЛА: ФЕЙК</div>' : '')
     + '<div class="msg-text">'+m.t+'</div>'
-    + '<div class="msg-views">👁 <span class="views-n">'+m.v+'</span></div>'
+    + '<div class="msg-views">👁 <span class="views-n">0</span></div>'
     + '</div>';
 }
 /* Жива стрічка (задача 8.2): пости зʼявляються послідовно з typing-індикатором. */
@@ -666,6 +817,8 @@ function revealFeed(gen, i){
     typEl.remove();
     const idx = order[i], m = S.feed[idx];
     feedEl.insertAdjacentHTML('beforeend', msgHTML(idx, m, stamps[i]));
+    const viewsEl = feedEl.querySelector('.msg[data-i="'+idx+'"] .views-n');
+    if(viewsEl) tickValue(viewsEl, 0, parseViews(m.v), formatViews);
     setTimeout(()=>revealFeed(gen, i+1), 160 + Math.random()*140);
   }, 260);
 }
@@ -697,6 +850,9 @@ function pickMsg(idx){
   if(document.querySelector('#feed.locked-feed')) return;   // FIX 5: pointer-events:none не блокує keydown
   if(S.i===0) showHint('first_pick');
   const el = document.querySelector('.msg[data-i="'+idx+'"]');
+  // Задача 2: тап дає лише нейтральний SELECTED (циан), не вердикт.
+  // Червоне+глітч (is-threat, блок 05) чіпляє тільки resolveFeed() —
+  // після ПІДТВЕРДЖЕННЯ вибору, не на самому тапі.
   if(S.picks.has(idx)){ S.picks.delete(idx); el.classList.remove('sel'); }
   else { S.picks.add(idx); el.classList.add('sel'); }
   updateConfirmBtn();
@@ -747,9 +903,18 @@ function resolveFeed(){
   document.getElementById('confirmBtn').style.display='none';
   let gain=0, loss=0, hostileTotal=0, hostileFound=0, falseAlarms=0, missedExplicit=0, missedSubtle=0;
   const recognized = [];   // пам'ять вибору (задача 9): усі ворожі пости цієї операції, знайдені й пропущені
+  // Задача 2: "підтверджена загроза" (is-threat, червона рамка+глітч блоку 05)
+  // тепер вішається ТУТ, на підтвердженні вибору фази — і лише на "червоних"
+  // вердиктах (пропущено/хибна тривога). На .hit (влучив) навмисно НЕ
+  // вішаємо is-threat, щоб не забити усталений зелений "вірно".
+  const punchThreat = el => {
+    el.classList.add('is-threat');
+    el.classList.remove('glitch'); void el.offsetWidth; el.classList.add('glitch');
+    el.addEventListener('animationend', ()=>el.classList.remove('glitch'), {once:true});
+  };
   S.feed.forEach((m,idx)=>{
     const el = document.querySelector('.msg[data-i="'+idx+'"]');
-    el.classList.remove('sel');
+    el.classList.remove('sel');   // прибрати pre-resolve нейтральну позначку (блок 05, задача 2)
     if(m.h){
       hostileTotal++;
       const subtle = m.tier==='sub';
@@ -765,12 +930,14 @@ function resolveFeed(){
         if(!subtle) missedExplicit++;   // тонкий пропуск довіру не чіпає, явний коштує
         else missedSubtle++;
         el.classList.add('missed','shake');
+        punchThreat(el);
         el.insertAdjacentHTML('afterbegin','<span class="tag '+(subtle?'hs':'h')+'">ПРОПУЩЕНО</span>');
       }
     } else if(picked.includes(idx)){
       falseAlarms++;
       loss += -6;
       el.classList.add('safe','shake');
+      punchThreat(el);
       el.insertAdjacentHTML('afterbegin','<span class="tag n">ХИБНА ТРИВОГА</span>');
       el.insertAdjacentHTML('beforeend','<div class="expl">'+m.w+'</div>');
     }
@@ -791,8 +958,7 @@ function resolveFeed(){
   }
   const delta = (clean?gainAdj(gain):gain) + pen(loss);
   setTimeout(()=>{ setInfl(delta, delta>0?'Розпізнавання':'Промахи'); },350);
-  app.querySelector('.screen').insertAdjacentHTML('beforeend',
-    '<button class="btn" onclick="wildThen(\'phaseTech\')">ДАЛІ · АНАЛІЗ ТЕХНІКИ</button>');
+  appendActionBtn('<button class="btn" onclick="wildThen(\'phaseTech\')">ДАЛІ · АНАЛІЗ ТЕХНІКИ</button>');
 }
 
 /* ---------- Wildcard ---------- */
@@ -869,11 +1035,13 @@ function wildPick(key, timedOut){
   if(!goodPick) picked.classList.add('shake');
   notPicked.classList.add('dim');
   picked.insertAdjacentHTML('beforeend','<div class="expl">'+(timedOut?'Час вийшов, рішення прийняли за тебе. ':'')+o.e+'</div>');
-  setInfl(o.fx>0?o.fx:pen(o.fx),'Подія');
+  // ФІКС 2: звук — за сенсом (goodPick), не за знаком дельти. Пастки на кшталт
+  // witch.b/botfarm.b мають fx>0, але cons:true+rep<0 — картка вже показує 'bad',
+  // а без цього явного sfx звук зрадницьки грав би 'gain'.
+  setInfl(o.fx>0?o.fx:pen(o.fx),'Подія', goodPick?'gain':'loss');
   if(o.rep) setRep(o.rep);
   if(o.cons) S.cons++;
-  app.querySelector('.screen').insertAdjacentHTML('beforeend',
-    '<button class="btn" onclick="window[\''+S._wildNext+'\']()">ПРОДОВЖИТИ</button>');
+  appendActionBtn('<button class="btn" onclick="window[\''+S._wildNext+'\']()">ПРОДОВЖИТИ</button>');
 }
 
 /* ---------- Пам'ять вибору (задача 9): «РОЗКРИТІ НАРАТИВИ» ---------- */
@@ -910,13 +1078,13 @@ function phaseTech(){
   S.lastTechPos = order.indexOf(okIdx);
   render(`
     <div class="ph-analysis">
-    <div class="eyebrow">ФАЗА 2 · НАЗВИ ТЕХНІКУ</div>
-    ${narrativesBlockHTML()}
+    <div class="eyebrow phase-title">ФАЗА 2 · НАЗВИ ТЕХНІКУ</div>
     <div class="task">🔬 <div>${sc.techniques.q}</div></div>
     <div class="opts">
       ${order.map(idx=>{const o=sc.techniques.opts[idx];return `
         <button class="opt" data-i="${idx}" onclick="pickTech(${idx})"><b>${o.n}</b>${o.d}</button>`}).join('')}
     </div>
+    ${narrativesBlockHTML()}
     </div>`);
   if(S.i===0) showHint('tech_enter');
 }
@@ -936,8 +1104,7 @@ function pickTech(idx){
   });
   setInfl(ok?gainAdj(7):pen(-8), ok?'Техніку розкрито':'Хибний аналіз');
   const next = sc.audiences ? 'phaseAudience' : 'phaseCounter';
-  app.querySelector('.screen').insertAdjacentHTML('beforeend',
-    '<button class="btn" onclick="wildThen(\''+next+'\')">ДАЛІ · ПРОТИДІЯ</button>');
+  appendActionBtn('<button class="btn" onclick="wildThen(\''+next+'\')">ДАЛІ · ПРОТИДІЯ</button>');
 }
 
 function phaseAudience(){
@@ -945,7 +1112,7 @@ function phaseAudience(){
   render(`
     <div class="ph-counter ph-aud">
     <div class="phase-banner live">📡 ОБИРАЄШ НАПРЯМОК УДАРУ</div>
-    <div class="eyebrow">ФАЗА 3 · НАПРЯМОК</div>
+    <div class="eyebrow phase-title">ФАЗА 3 · НАПРЯМОК</div>
     <div class="task">📡 <div>${sc.audienceQ}</div></div>
     <div class="opts">
       ${sc.audiences.map((a,idx)=>`
@@ -968,7 +1135,7 @@ function phaseCounter(){
   render(`
     <div class="ph-counter">
     <div class="phase-banner live">🔴 ЕФІР ЖИВИЙ · ВОРОЖА ВЕРСІЯ ШИРИТЬСЯ</div>
-    <div class="eyebrow">ФАЗА ${sc.audiences?'4':'3'} · КОНТРНАРАТИВ</div>
+    <div class="eyebrow phase-title">ФАЗА ${sc.audiences?'4':'3'} · КОНТРНАРАТИВ</div>
     <div class="timer" id="timerBox">⏱ <span class="t" id="timerT">${t}</span>
       <div class="timer-bar"><i id="timerBar" style="width:100%"></i></div>
       <span class="note">вакуум працює на ворога</span>
@@ -1013,8 +1180,7 @@ function pickCounter(idx){
   // PATCH B5: чесний фідбек середньої опції — не видавати частковий ефект за перемогу
   const label = o.best ? 'Контрнаратив працює' : (o.fx>0 ? 'Частковий ефект' : 'Хід на користь ІПСО');
   setInfl(o.fx>0?gainAdj(o.fx,true):pen(o.fx), label, (!o.best && o.fx>0) ? false : undefined);
-  app.querySelector('.screen').insertAdjacentHTML('beforeend',
-    '<button class="btn" onclick="phaseDebrief()">ДАЛІ · РОЗБІР</button>');
+  appendActionBtn('<button class="btn" onclick="phaseDebrief()">ДАЛІ · РОЗБІР</button>');
 }
 
 function phaseDebrief(){
@@ -1183,7 +1349,7 @@ function finale(){
             <li>ЧЕРВОНА КОМАНДА: сконструюй ІПСО сам і зрозумій захист зсередини</li>
           </ul>
         </div>
-        ${feedbackLink('ЗАЛИШИТИ ФІДБЕК — 2 ХВИЛИНИ')}
+        ${SHOW_FEEDBACK_BTN ? feedbackLink('ЗАЛИШИТИ ФІДБЕК — 2 ХВИЛИНИ') : ''}
         <button class="btn" onclick="restart()">ЩЕ РАЗ · ІНША РОЛЬ</button>
         <button class="btn ghost" onclick="restartToModes()">ДО РЕЖИМІВ</button>
       </div>`);
@@ -1246,6 +1412,25 @@ function brokenPack(){
     </div>`);
 }
 function goStandard(){ history.replaceState(null,'',location.pathname); location.reload(); }
+/* design/crt-lab.html блок 07: PvP-звіт — рядки послідовно, потім удар
+   печаткою. .pvp-row→.stat, .stamp→.rank (портовано, лише селектори
+   адаптовано; клас/текст вердикту сам .rank уже отримує з шаблону нижче,
+   тому на відміну від сніпета це тут не дублюється). */
+function playPvpReport(root){
+  const rows = root.querySelectorAll('.stat');
+  const stamp = root.querySelector('.rank');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  rows.forEach((r,i)=>{
+    r.classList.remove('on');
+    void r.offsetWidth;
+    setTimeout(()=>r.classList.add('on'), reduced?0:120+i*180);
+  });
+  setTimeout(()=>{
+    stamp.classList.remove('hit');
+    void stamp.offsetWidth;
+    stamp.classList.add('hit');
+  }, reduced?0:120+rows.length*180+120);
+}
 function packFinale(){
   document.body.classList.remove('boss-mode');
   const sc = SCENARIOS[0], rec = S._recognized || [];
@@ -1253,7 +1438,7 @@ function packFinale(){
   const hit = rows.filter(r=>r.found).length;
   const breached = hit < rows.length || !!(S._op && S._op.false>0);
   render(`
-    <div style="padding-top:3vh;text-align:center">
+    <div class="pvp-report" style="padding-top:3vh;text-align:center">
       <div class="eyebrow">РОЗБІР ЧУЖОЇ ОПЕРАЦІЇ</div>
       <h2>ОПЕРАЦІЮ СТВОРИВ ІНШИЙ ГРАВЕЦЬ</h2>
       <div class="rank ${breached?'low':'gold'}">${breached?'ПРОБИТО':'ВСТОЯВ'}</div>
@@ -1269,11 +1454,33 @@ function packFinale(){
       ${ENABLE_CREATOR ? `<button class="btn" onclick="location.href='creator.html'">СТВОРИТИ СВОЮ ОПЕРАЦІЮ ▸</button>` : ''}
       <button class="btn ghost" onclick="goStandard()">ДО ЗВИЧАЙНОЇ ГРИ</button>
     </div>`);
+  playPvpReport(document.querySelector('.pvp-report'));
 }
+
+/* ===== блок 09: інтро "ІПСОМНІЯ" =====
+   Сама заставка (#ipso-boot) — готовий самодостатній HTML+CSS+JS-блок одразу
+   після <body> в index.html, з власним таймингом і скіпом. Його inline-скрипт
+   виконується одразу при парсингу — тобто РАНІШЕ, ніж завантажиться цей файл
+   (content.js/engine.js підключені в кінці body). Тому window.ipsoIntroStart
+   не чіпляємо: у момент, коли заставка перевіряє його наявність, ця функція
+   ще не існує, виклик мовчки пропускається. Музика вступу й далі queue-иться
+   штатно всередині startIntro() після вибору "ГРАТИ", як і раніше.
+   ipsoIntroDone спрацьовує пізніше (заставка триває 1.4-3с, встигаємо
+   зареєструвати листенер задовго до події) — тому саме тут безпечно
+   запускати звичайний бут гри. */
+window.ipsoIntroDone = function(){
+  const packRaw = new URLSearchParams(location.search).get('pack');
+  if(packRaw){ bootPack(packRaw); } else { modeSelect(); }
+};
 
 hud();
 setInfl(0);
 // Глобальна плаваюча кнопка фідбеку: створюється раз, живе поза #app, переживає всі render().
-document.body.insertAdjacentHTML('beforeend', '<a id="feedbackFab" class="feedback-fab" href="'+FEEDBACK_URL+'" target="_blank" rel="noopener" title="Залишити фідбек">ФІДБЕК</a>');
-const packRaw = new URLSearchParams(location.search).get('pack');
-if(packRaw){ bootPack(packRaw); } else { modeSelect(); }
+if(SHOW_FEEDBACK_BTN) document.body.insertAdjacentHTML('beforeend', '<a id="feedbackFab" class="feedback-fab btn--feedback" href="'+FEEDBACK_URL+'" target="_blank" rel="noopener" title="Залишити фідбек">ФІДБЕК</a>');
+// Захист: якщо #ipso-boot з якоїсь причини не встав у розмітку, подія
+// 'ipso:intro-done' ніколи не прийде — не лишати гру видимо застряглою.
+if(document.getElementById('ipso-boot')){
+  document.addEventListener('ipso:intro-done', window.ipsoIntroDone, { once:true });
+} else {
+  window.ipsoIntroDone();
+}

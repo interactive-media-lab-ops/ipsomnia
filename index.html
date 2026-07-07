@@ -2,8 +2,9 @@
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Іпсомнія — Інфопротистояння · v0.3</title>
+<link rel="stylesheet" href="design-tokens.css">
 <style>
 @font-face{font-family:'Press Start 2P';font-style:normal;font-weight:400;font-display:swap;src:url('assets/fonts/press-start-2p.woff2') format('woff2')}
 @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('assets/fonts/inter-400.woff2') format('woff2')}
@@ -19,25 +20,38 @@
   --r:10px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
+/* Фікс 3: 100vh на iOS Safari не враховує тулбар, що ховається/виїжджає —
+   рядок з 100dvh нижче перебиває його лише там, де dvh підтримується
+   (старі браузери просто ігнорують невідому одиницю й лишають 100vh). */
+html,body{height:100vh;height:100dvh}
+/* body більше НЕ скролиться сам (overflow:hidden) — це і прибирає той самий
+   "тулбар з'їдає перший тап" ефект iOS Safari, який завжди тригериться
+   скролом САМЕ body/document. Замість цього body — flex-колонка: .topbar
+   лишається зверху звичайним потоком (position:sticky більше не потрібен,
+   але не чіпаємо його — нешкідливий, коли немає скролу на цьому рівні),
+   а #app/.wrap нижче стає власним скрол-контейнером (див. .wrap нижче). */
 body{
   background:
     radial-gradient(900px 500px at 50% -8%, #131F38 0%, var(--bg) 60%);
   color:var(--text); font-family:'Inter',system-ui,sans-serif;
-  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden; overflow-y:hidden;
   transition:background 1.2s ease;
+  display:flex; flex-direction:column;
 }
 /* Бос-режим (задача 8.3): темніший, червонявий фон на весь час боса */
 body.boss-mode{
   background:
     radial-gradient(900px 500px at 50% -8%, #2A1420 0%, #120609 60%);
 }
-/* CRT сканлайни */
-body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:100;
-  background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px);}
-body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:99;
-  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.32) 100%);}
-.wrap{max-width:640px;margin:0 auto;padding:16px 16px 48px}
+/* CRT сканлайни/віньєтка тепер з design-tokens.css (.crt-scanlines/.crt-vignette
+   в кінці body) — старий ad-hoc body::before/after прибрано, дублював те саме. */
+/* Фікс 3: #app/.wrap — власний скрол-контейнер (не body). flex:1 забирає весь
+   простір під .topbar; min-height:0 обов'язковий для flex-дитини з overflow —
+   інакше вона не стискається й не скролиться як слід. -webkit-overflow-scrolling
+   вмикає інерційний скрол на iOS. Відступ знизу враховує home-індикатор. */
+.wrap{max-width:640px;margin:0 auto;width:100%;padding:16px 16px calc(48px + env(safe-area-inset-bottom,0px));
+  flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+.mono{font-family:'JetBrains Mono',monospace}
 .mono{font-family:'JetBrains Mono',monospace}
 .px{font-family:'Press Start 2P',monospace}
 
@@ -52,26 +66,54 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:99;
   padding:4px 6px;cursor:pointer;transition:border-color .15s,color .15s}
 @media (hover:hover){.sfx-btn:hover{border-color:var(--gold);color:var(--gold)}}
 .tb-prog{font-family:'Press Start 2P';font-size:8px;color:var(--muted)}
+/* Задача 3: шкала впливу перероблена на дві чіткі суцільні зони замість
+   градієнта+штрихування, які зливались в кашу. База (.infl) — суцільна
+   золота "стійкість"; .infl-fill — суцільна червона "вплив ІПСО", що
+   насувається зліва (scaleX, блок 06). Роздільник зон — уже наявний
+   .infl-marker (яскрава золота лінія на межі), другий окремий роздільник
+   не потрібен. Штрихування прибрано повністю (не лишено навіть статичним —
+   на суцільних кольорах воно тільки заважало читати межу зон). */
 .infl{position:relative;height:24px;border:2px solid var(--line);overflow:hidden;
-  background:linear-gradient(90deg,var(--hostile-dim) 0%,#141F33 46%,#141F33 54%,var(--gold-dim) 100%)}
-.infl-fill{position:absolute;inset:0;background:
-  repeating-linear-gradient(-55deg,rgba(229,72,77,.30) 0 6px,transparent 6px 12px);
-  transition:clip-path .7s cubic-bezier(.22,1,.36,1)}
+  background:var(--gold-dim)}
+.infl-fill{position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);
+  background:var(--hostile);
+  transition:transform .7s cubic-bezier(.22,1,.36,1)}
 .infl-seg{position:absolute;inset:0;pointer-events:none;
   background:repeating-linear-gradient(90deg,transparent 0 calc(4% - 2px),var(--bg) calc(4% - 2px) 4%)}
 .infl-marker{position:absolute;top:-2px;bottom:-2px;width:6px;background:var(--gold);
-  box-shadow:0 0 10px var(--gold);transition:left .7s cubic-bezier(.22,1,.36,1)}
-.infl-num{position:absolute;top:50%;transform:translate(-50%,-50%);background:var(--gold);color:#12100A;font-family:'Press Start 2P';font-size:9px;padding:3px 5px;z-index:3;transition:left .5s ease}
-.infl.critical{border-color:var(--hostile);animation:critBlink 1s steps(2) infinite}
+  box-shadow:0 0 10px var(--gold);transition:left .7s cubic-bezier(.22,1,.36,1);z-index:3}
+/* бейдж числа — контрастний, завжди поверх (z-index вищий за fill/warn/marker) */
+.infl-num{position:absolute;top:50%;transform:translate(-50%,-50%);background:var(--gold);color:#12100A;font-family:'Press Start 2P';font-size:9px;padding:3px 5px;z-index:4;transition:left .5s ease}
+/* критична зона: статична (не блимає) зміна кольору рамки/бейджа — саме
+   мигання шкали заборонено, тривогу несе лише .infl-warn (opacity-пульс) */
+.infl.critical{border-color:var(--hostile)}
 .infl.critical .infl-num{background:var(--hostile);color:#fff}
-@keyframes critBlink{50%{border-color:#5A1D22}}
 .infl-mid{position:absolute;left:50%;top:0;bottom:0;width:2px;background:rgba(233,239,248,.25);z-index:1}
+/* попереджувальний шар — ОКРЕМИЙ від fill, анімує лише opacity.
+   danger (S.infl<25) — м'який пульс; critical (S.infl<=12) — той самий
+   шар, швидший пульс. Один механізм тривоги на дві ескалації, а не два. */
+.infl-warn{position:absolute;inset:0;opacity:0;background:var(--red);mix-blend-mode:screen;z-index:2}
+.infl.danger .infl-warn{animation:inflPulse 700ms ease-in-out infinite}
+.infl.critical .infl-warn{animation:inflPulse 380ms ease-in-out infinite}
+@keyframes inflPulse{0%,100%{opacity:0}50%{opacity:.38}}
+@media (prefers-reduced-motion:reduce){
+  .infl-fill{transition:none}
+  .infl.danger .infl-warn,.infl.critical .infl-warn{animation:none;opacity:.22}
+}
 .hud2{display:flex;justify-content:space-between;align-items:center;margin-top:7px;font-family:'JetBrains Mono';font-size:11px;color:var(--muted);letter-spacing:.05em}
 .hud2 .streak{color:var(--gold)}
 .hud2 .streak.cold{color:var(--muted)}
 .hud2 .rep{color:var(--ok)}
 .hud2 .rep.low{color:var(--hostile)}
 .hud2 .badges span{letter-spacing:2px}
+/* Задача 4, мікроанімація 2/5: бейдж розкритої техніки — "печатка" */
+.badge-ico{display:inline-block}
+.badge-ico.got{color:var(--gold);text-shadow:var(--glow-gold)}
+.badge-ico.stamp{animation:badgeStamp 320ms ease-out 1 both}
+@keyframes badgeStamp{
+  0%{transform:scale(1.15);opacity:.5}
+  60%{transform:scale(1.05);opacity:1}
+  100%{transform:scale(1);opacity:1}}
 .infl-labels{display:flex;justify-content:space-between;font-family:'JetBrains Mono';font-size:10px;margin-top:5px;letter-spacing:.1em}
 .infl-labels .l{color:var(--hostile)}.infl-labels .r{color:var(--gold)}
 .toast{position:fixed;top:110px;left:50%;transform:translateX(-50%) translateY(-8px);z-index:110;
@@ -84,7 +126,65 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:99;
 /* ===== Загальне ===== */
 .screen{animation:fadeUp .4s ease both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* ===== design/crt-lab.html блок 02: «термінал прокидається» =====
+   Селектори адаптовано під наявну розмітку: кожен render() вже загортає
+   контент у <div class="screen">, тому booting чіпляється просто поверх
+   .screen (замінює fadeUp вище, коли обидва класи присутні одночасно),
+   а .boot-line — структурний селектор на прямих дітях .screen замість
+   окремого класу на кожному рядку: у грі немає єдиної розмітки "рядків
+   терміналу", але кожен екран однаково складений з верхньорівневих
+   блоків, тож вони і стають "рядками". */
+.screen.booting{ animation:bootFlicker 180ms steps(8) 1 both; }
+@keyframes bootFlicker{
+  0%{opacity:0} 15%{opacity:.7} 25%{opacity:.22}
+  45%{opacity:1} 55%{opacity:.5} 100%{opacity:1} }
+.screen.booting>*{ opacity:0; transform:translateY(-6px); }
+.screen.booting>*.on{ animation:bootLineIn 150ms ease-out both; }
+@keyframes bootLineIn{
+  0%{opacity:0; transform:translateY(-6px)}
+  55%{opacity:1}
+  100%{opacity:1; transform:none} }
+@media (prefers-reduced-motion:reduce){
+  .screen.booting{ animation:none; }
+  .screen.booting>*,.screen.booting>*.on{ opacity:1; transform:none; animation:none; }
+}
+
+/* ===== блок 08: glitch-перехід (замінює блок 03/wipe за прямою вказівкою
+   брифу — сніпета в лабі нема, блоків 08/09 у design/crt-lab.html не існує,
+   тому це авторський код за функціональним описом бріфу, не порт).
+   Одноразовий джитер+мерехтіння на .screen, лише transform/opacity —
+   ніякого filter на великій площі. ~200мс, жодної смуги/wipe. */
+.screen.glitching{ animation:screenGlitch 200ms steps(6) 1 both; }
+@keyframes screenGlitch{
+  0%{opacity:1; transform:translate(0,0)}
+  15%{opacity:.3; transform:translate(-3px,1px)}
+  30%{opacity:.85; transform:translate(2px,-1px)}
+  45%{opacity:.25; transform:translate(-2px,0)}
+  60%{opacity:.9; transform:translate(1px,1px)}
+  80%{opacity:.4; transform:translate(-1px,0)}
+  100%{opacity:1; transform:translate(0,0)} }
+/* обидва класи разом (кожен render() ставить і глітч, і boot) — явно
+   комбінуємо, інакше .screen.booting{animation:...} перебив би glitch
+   повністю (animation-shorthand не додається, а замінюється) */
+.screen.glitching.booting{
+  animation:screenGlitch 200ms steps(6) 1 both, bootFlicker 180ms steps(8) 1 both; }
+@media (prefers-reduced-motion:reduce){
+  .screen.glitching,.screen.glitching.booting{ animation:screenFade 100ms ease 1 both; }
+}
+@keyframes screenFade{ 0%{opacity:.4} 100%{opacity:1} }
+
 .eyebrow{font-family:'Press Start 2P';font-size:9px;letter-spacing:.06em;color:var(--gold);margin-bottom:12px;line-height:1.7}
+/* Фікс 2а: заголовок фази — мін. 1.5x кегль (9px→14px+, clamp під 390px),
+   золоте свічення з токенів, піксельний (сегментований) розділювач під
+   текстом. Клас додається ПОРУЧ з .eyebrow (не замінює його) лише на 4
+   рендерах "ФАЗА N · ..." в engine.js — інші .eyebrow (мапа, вибір ролі
+   тощо) цей фікс не чіпає. */
+.phase-title{font-size:clamp(14px,4.2vw,17px);line-height:1.6;color:var(--gold);
+  text-shadow:var(--glow-gold,0 0 4px rgba(255,210,74,.55),0 0 14px rgba(255,168,40,.30));
+  padding-bottom:12px;margin-bottom:16px;position:relative}
+.phase-title::after{content:'';position:absolute;left:0;bottom:0;width:100%;max-width:220px;height:4px;
+  background:repeating-linear-gradient(90deg,var(--gold) 0 6px,transparent 6px 10px)}
 h1{font-family:'Press Start 2P';font-size:clamp(22px,6vw,34px);line-height:1.25;margin-bottom:16px}
 h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;margin-bottom:12px}
 .lead{color:var(--muted);font-size:15px;line-height:1.6;margin-bottom:8px}
@@ -108,7 +208,11 @@ h2{font-family:'Press Start 2P';font-size:clamp(13px,4vw,18px);line-height:1.5;m
 @media (max-width:560px){.title-screen h1{font-size:32px}}
 .card{background:var(--panel);border:2px solid var(--line);padding:18px;margin-bottom:12px}
 .op-art{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border:2px solid var(--line);image-rendering:pixelated;margin-bottom:12px}
-button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,.intro-skip,.sfx-btn{touch-action:manipulation}
+/* Фікс 3: подвійний тап iOS — .role-card/.osint-x додано (їх уже чекав
+   звуковий click-листенер у engine.js, але тут для touch-action бракувало);
+   .hint-panel — контейнер нижньої панелі дій (bottom-sheet на мобілі,
+   містить .hint-ok). Решта — як було, нічого не прибирав. */
+button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,.intro-skip,.sfx-btn,.role-card,.osint-x,.hint-panel{touch-action:manipulation}
 .btn{display:block;width:100%;text-align:center;font-family:'Press Start 2P';font-size:11px;
   padding:16px 12px;border:2px solid #000;cursor:pointer;line-height:1.5;
   background:var(--gold);color:#12100A;box-shadow:0 4px 0 #000;transition:transform .08s,box-shadow .08s;margin-top:16px}
@@ -116,6 +220,34 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .btn:disabled{opacity:.35;cursor:default}
 .btn:focus-visible,.opt:focus-visible,.msg:focus-visible,.mode:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .btn.ghost{background:var(--panel);color:var(--muted);border-color:var(--line);box-shadow:0 4px 0 #060B14}
+
+/* ===== design/crt-lab.html блок 04: пульс свічення на кнопках =====
+   Наявний .btn лишає свій базовий вигляд (суцільний золотий блок,
+   3D-тінь при натисканні) — блок 04 додає ЛИШЕ hover/active пульс-глоу
+   поверх. @media(hover:hover) — за конвенцією проєкту (.msg:hover,
+   .opt:hover тощо), щоб пульс не залипав на мобільних після тапу. */
+@media (hover:hover){
+  .btn:hover{ border-color:var(--cyan); box-shadow:var(--glow-cyan);
+    animation:btnPulse 1.4s ease-in-out infinite; }
+}
+@keyframes btnPulse{ 0%,100%{box-shadow:0 0 4px rgba(74,224,224,.40)}
+  50%{box-shadow:0 0 5px rgba(74,224,224,.65),0 0 18px rgba(74,224,224,.40)} }
+@media (hover:hover){
+  .btn--gold:hover{ border-color:var(--gold); box-shadow:var(--glow-gold);
+    animation-name:btnPulseGold; }
+}
+@keyframes btnPulseGold{ 0%,100%{box-shadow:0 0 4px rgba(255,210,74,.40)}
+  50%{box-shadow:0 0 5px rgba(255,210,74,.65),0 0 18px rgba(255,168,40,.40)} }
+.btn--cyan{ color:var(--cyan); border-color:#205050; text-shadow:var(--glow-cyan); }
+/* фіолетова кнопка ФІДБЕК — окремий утилітний акцент (задача: btn--feedback) */
+.btn--feedback{ color:var(--violet); border-color:#3A2A66; text-shadow:var(--glow-violet); }
+@media (hover:hover){
+  .btn--feedback:hover{ border-color:var(--violet); box-shadow:var(--glow-violet);
+    animation-name:btnPulseViolet; }
+}
+@keyframes btnPulseViolet{ 0%,100%{box-shadow:0 0 4px rgba(155,107,255,.45)}
+  50%{box-shadow:0 0 5px rgba(155,107,255,.70),0 0 20px rgba(140,90,255,.45)} }
+
 .task{display:flex;gap:10px;align-items:flex-start;background:var(--panel2);border:2px solid var(--line);
   border-left:4px solid var(--gold);padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.5}
 .task b{color:var(--gold)}
@@ -176,7 +308,15 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .msg-flag{display:inline-block;font-family:'JetBrains Mono';font-size:10px;color:var(--muted);
   background:var(--panel2);border:1px solid var(--gold-dim);padding:3px 7px;margin-bottom:8px;letter-spacing:.03em}
 .msg-views{font-family:'JetBrains Mono';font-size:10px;color:var(--muted);margin-top:8px;text-align:right}
-.msg.sel{border-color:var(--gold)}
+/* Задача 2: два окремі стани. SELECTED (тап, до підтвердження) — нейтральний
+   циан + маркер, знімається повторним тапом. Червоне+глітч (is-threat,
+   блок 05) — тільки після ПІДТВЕРДЖЕННЯ вибору фази (resolveFeed), і лише
+   на "червоних" вердиктах (пропущено/хибна тривога) — на .hit (влучив,
+   зелений) навмисно НЕ вішається, щоб не забити усталений "зелений=вірно". */
+.msg.sel{border-color:var(--cyan);box-shadow:var(--glow-cyan)}
+.msg.sel::after{content:'✓ ОБРАНО';position:absolute;top:-11px;right:10px;
+  font-family:'Press Start 2P';font-size:7px;letter-spacing:.02em;
+  background:var(--cyan);color:#062024;padding:4px 7px}
 .msg.hit{border-color:var(--ok)}
 .msg.missed{border-color:var(--hostile);border-style:dashed}
 .msg.safe{border-color:var(--hostile)}
@@ -186,12 +326,35 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .msg .tag.n{background:#5A1D22;color:#fff}
 .locked-feed{pointer-events:none}
 
+/* ===== design/crt-lab.html блок 05: поява картки + глітч-загроза =====
+   .feed-card→.msg, .feed-title→.msg-author (селектори під наявну розмітку
+   стрічки). Поява: клас .appear додається одразу в msgHTML() — елемент
+   новий при вставці, окремий JS-тригер (toggle+reflow) не потрібен.
+   Задача 2: .is-threat+.glitch більше НЕ вішаються в pickMsg() (тап дає
+   лише нейтральний .sel циан вище) — тепер їх додає resolveFeed() на
+   "червоних" вердиктах (пропущено/хибна тривога), як реакція на
+   ПІДТВЕРДЖЕННЯ вибору фази, не на сам тап. */
+.msg.appear{ animation:cardAppear 260ms steps(6) 1 both; }
+@keyframes cardAppear{ 0%{opacity:0} 20%{opacity:.4} 40%{opacity:.14}
+  60%{opacity:.8} 80%{opacity:.35} 100%{opacity:1} }
+.msg.is-threat{ border-color:var(--red); box-shadow:var(--glow-red); }
+.msg.is-threat .msg-author{ color:var(--red); text-shadow:var(--glow-red); }
+.msg.glitch{ animation:cardGlitch 170ms steps(3) 1 both; }
+@keyframes cardGlitch{ 0%{transform:translateX(0)} 20%{transform:translateX(-4px)}
+  45%{transform:translateX(3px)} 70%{transform:translateX(-2px)} 100%{transform:translateX(0)} }
+@media (prefers-reduced-motion:reduce){
+  .msg.appear,.msg.glitch{ animation:none; opacity:1; transform:none; } }
+
 /* ===== Опції ===== */
 .opts{display:flex;flex-direction:column;gap:10px}
 .opt{background:var(--panel);border:2px solid var(--line);padding:14px;cursor:pointer;
   text-align:left;color:var(--text);font-family:'Inter';font-size:14px;line-height:1.5;transition:border-color .15s;width:100%}
 @media (hover:hover){.opt:hover{border-color:#3A4E73}}
 .ph-analysis .eyebrow{color:var(--purple)}
+/* Фаза 2 лишає фіолетовий акцент на завданні/опціях, але заголовок фази —
+   уніфікований золотий орієнтир на всіх фазах (вища специфічність, щоб
+   перебити .ph-analysis .eyebrow вище). */
+.ph-analysis .eyebrow.phase-title{color:var(--gold);text-shadow:var(--glow-gold,0 0 4px rgba(255,210,74,.55),0 0 14px rgba(255,168,40,.30))}
 .ph-analysis .task{border-left-color:var(--purple);background:#151226}
 .ph-analysis .opt{border-left:4px solid #2A2340}
 @media (hover:hover){.ph-analysis .opt:hover{border-color:var(--purple)}}
@@ -283,7 +446,12 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .bob{animation:bob 2.2s ease-in-out infinite}
 
 /* ===== Ранг операції (S/A/B/C) ===== */
-.grade{font-family:'Press Start 2P';font-size:clamp(52px,17vw,92px);line-height:1;margin:4px 0 18px;text-shadow:0 4px 0 #000}
+/* Задача 4, мікроанімація 4/5: вердикт фази — одиночний CRT-flicker кадр
+   при появі (лише opacity, той самий патерн, що bootFlicker блоку 02) */
+.grade{font-family:'Press Start 2P';font-size:clamp(52px,17vw,92px);line-height:1;margin:4px 0 18px;text-shadow:0 4px 0 #000;
+  animation:gradeFlicker 220ms steps(6) 1 both}
+@keyframes gradeFlicker{
+  0%{opacity:0} 20%{opacity:.8} 35%{opacity:.2} 55%{opacity:1} 70%{opacity:.5} 100%{opacity:1} }
 .gr-a{color:var(--gold)}.gr-b{color:#B8C8E2}.gr-c{color:var(--hostile)}
 .grade-sub{font-family:'JetBrains Mono';font-size:11px;color:var(--muted);letter-spacing:.08em;margin:-10px 0 18px}
 
@@ -297,7 +465,7 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 @keyframes osintPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,197,66,0)}50%{box-shadow:0 0 0 4px rgba(245,197,66,.25)}}
 .osint-modal{position:fixed;inset:0;z-index:200;background:rgba(6,10,18,.86);display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeUp .2s ease both}
 .osint-card{background:var(--panel);border:2px solid var(--gold);box-shadow:0 0 0 1px var(--gold-dim),0 20px 60px rgba(0,0,0,.5);
-  max-width:460px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;animation:osintPop .25s cubic-bezier(.22,1,.36,1) both}
+  max-width:460px;width:100%;max-height:88vh;max-height:88dvh;overflow-y:auto;padding:20px;animation:osintPop .25s cubic-bezier(.22,1,.36,1) both}
 @keyframes osintPop{from{opacity:0;transform:scale(.96) translateY(6px)}to{opacity:1;transform:none}}
 .osint-h{display:flex;justify-content:space-between;align-items:center;font-family:'Press Start 2P';font-size:9px;color:var(--gold);letter-spacing:.04em;
   margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--gold-dim)}
@@ -349,6 +517,12 @@ body.boss-mode .dialogue-box{border-left-color:var(--hostile)}
 .narr-list{display:flex;flex-direction:column;gap:6px}
 .narr-card{background:var(--panel2);border:1px solid var(--line);padding:8px 10px;cursor:pointer;transition:border-color .15s}
 @media (hover:hover){.narr-card:hover{border-color:#3A4E73}}
+/* Задача 4, мікроанімація 3/5: stagger 40-60мс між картками при появі.
+   Без базового opacity:0 на .narr-card — анімація сама стартує з 0 у своєму
+   ж keyframe, тому картка лишається видимою, навіть якщо JS не встигне/не
+   зможе додати .narr-stagger (той самий урок, що з .screen.booting>* вище). */
+.narr-card.narr-stagger{ animation:narrCardIn 220ms ease-out both; }
+@keyframes narrCardIn{ 0%{opacity:0;transform:translateY(6px)} 100%{opacity:1;transform:none} }
 .narr-card.narr-missed{border-color:var(--hostile);border-style:dashed}
 .narr-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 8px}
 .narr-author{font-size:12px;font-weight:600;color:#B8C8E2;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -406,22 +580,29 @@ body.boss-mode .dialogue-box{border-left-color:var(--hostile)}
 .hint-body{flex:1;min-width:0}
 .hint-name{font-family:'Press Start 2P';font-size:8px;color:var(--gold);margin-bottom:4px;letter-spacing:.05em}
 .hint-text{font-size:13px;line-height:1.5;color:var(--text)}
-.hint-ok{align-self:flex-end;font-family:'Press Start 2P';font-size:9px;background:var(--gold);color:#12100A;border:2px solid #000;padding:8px 12px;cursor:pointer}
+/* Фікс 3: реальна тап-зона мін. 48px (padding+line-height рахуються в неї) */
+.hint-ok{align-self:flex-end;font-family:'Press Start 2P';font-size:9px;background:var(--gold);color:#12100A;border:2px solid #000;padding:8px 12px;cursor:pointer;
+  min-height:48px;min-width:48px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
 .hint-focus{outline:3px solid var(--gold);outline-offset:3px;animation:hintPulse 1.2s ease-in-out infinite}
 @keyframes hintPulse{50%{outline-color:transparent}}
-.hint-panel{max-height:60vh;overflow-y:auto}
+.hint-panel{max-height:60vh;max-height:60dvh;overflow-y:auto}
 @media (max-width:560px){
-  .hint-panel{top:auto!important;bottom:12px;left:12px;right:12px;width:auto;transform:translateY(130%)}
+  /* Фікс 3: панель-бутоншит — position:fixed (вже було), bottom-офсет і
+     внутрішній відступ враховують home-індикатор/тулбар через safe-area. */
+  .hint-panel{top:auto!important;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:12px;right:12px;width:auto;
+    transform:translateY(130%);padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 }
 .finale-art{display:block;width:100%;max-width:520px;margin:0 auto 20px;aspect-ratio:16/9;object-fit:cover;border:2px solid var(--line);image-rendering:pixelated}
 
-/* ===== Глобальна кнопка фідбеку: fixed, знизу справа ===== */
-.feedback-fab{position:fixed;right:10px;bottom:10px;z-index:60;font-family:'Press Start 2P';font-size:8px;letter-spacing:.04em;
-  color:var(--purple);background:rgba(17,26,43,.82);border:2px solid var(--purple);text-decoration:none;
-  padding:8px 7px;line-height:1.3;min-width:44px;min-height:44px;box-sizing:border-box;
+/* ===== Глобальна кнопка фідбеку: fixed, знизу справа =====
+   Колір/рамка/glow тепер від .btn--feedback (блок 04) — власний
+   фіолетовий акцент тут прибрано, лишились тільки бокс-модель і позиція. */
+/* Фікс 3: bottom-офсет враховує safe-area (home-індикатор), тап-зона 48px */
+.feedback-fab{position:fixed;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:60;font-family:'Press Start 2P';font-size:8px;letter-spacing:.04em;
+  background:rgba(17,26,43,.82);text-decoration:none;
+  padding:8px 7px;line-height:1.3;min-width:48px;min-height:48px;box-sizing:border-box;
   display:flex;align-items:center;justify-content:center;text-align:center;
   opacity:1;transition:opacity .2s,border-color .15s,bottom .2s}
-@media (hover:hover){.feedback-fab:hover{border-color:#fff}}
 .feedback-fab:hover,.feedback-fab:active{opacity:1}
 /* під час активної фази з таймером (контрхід, wildcard-подія) кнопка притлумлена, щоб не відволікати.
    Клас body.timer-active тримають startTimer/startWildTimer, а не CSS :has() — так надійніше
@@ -432,9 +613,196 @@ body.timer-active .feedback-fab{opacity:.55}
 @media (max-width:560px){
   body:has(.hint-panel.show) .feedback-fab{bottom:240px}
 }
+
+/* ===== design/crt-lab.html блок 07: PvP-звіт (реконсиляція ?pack= фіналу) =====
+   Scoped під .pvp-report, щоб не чіпати .stat/.rank в інших екранах
+   (phaseRank, звичайний finale() — там ці класи теж використовуються).
+   .pvp-row→.stat (рядки звірки технік), .stamp→.rank (вердикт ПРОБИТО/ВСТОЯВ). */
+.pvp-report .stat{opacity:0;transform:translateY(8px)}
+.pvp-report .stat.on{animation:pvpRow 220ms ease-out 1 both}
+@keyframes pvpRow{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:none}}
+.pvp-report .rank{opacity:0;transform:scale(2.4) rotate(-8deg)}
+.pvp-report .rank.hit{animation:stampHit 360ms cubic-bezier(.2,1.5,.3,1) 1 both}
+@keyframes stampHit{
+  0%{opacity:0;transform:scale(2.4) rotate(-8deg)}
+  60%{opacity:1;transform:scale(.90) rotate(-8deg)}
+  100%{opacity:1;transform:scale(1) rotate(-8deg)}}
+@media (prefers-reduced-motion:reduce){
+  .pvp-report .stat,.pvp-report .stat.on{opacity:1;transform:none;animation:none}
+  .pvp-report .rank,.pvp-report .rank.hit{opacity:1;transform:none;animation:none}
+}
+
+/* Блок 09 "інтро ІПСОМНІЯ" тепер живе як окремий #ipso-boot одразу після
+   <body> (готовий блок HTML+CSS+JS) — старий #introTitle звідси прибрано. */
 </style>
 </head>
 <body>
+
+<!-- ============================================================
+     ІПСОМНІЯ · ІНТРО-ЗАСТАВКА (~3с). Встав ОДРАЗУ після <body>.
+     Само-видаляється з DOM. Скіп: тап / будь-яка клавіша.
+     Хуки: window.ipsoIntroStart()  — на старті (звук)
+           window.ipsoIntroDone()   — коли зникло (стартуй гру)
+           подія document 'ipso:intro-done'
+     Тайминги міняй в обʼєкті DUR нижче.
+     ============================================================ -->
+<div id="ipso-boot" role="presentation" aria-hidden="true">
+  <div class="ib-scan"></div>
+  <div class="ib-noise"></div>
+  <div class="ib-vign"></div>
+  <div class="ib-power"></div>
+  <pre class="ib-log"></pre>
+  <div class="ib-center">
+    <div class="ib-title"></div>
+    <div class="ib-sub">ТРЕНАЖЕР ІНФОСТІЙКОСТІ</div>
+    <div class="ib-bar"><i></i></div>
+  </div>
+</div>
+
+<style>
+/* ІПСОМНІЯ · інтро-заставка. Тільки transform/opacity → 60fps. */
+#ipso-boot{ position:fixed; inset:0; z-index:99999; overflow:hidden;
+  background:var(--bg,#0B0F1A); display:flex; align-items:center; justify-content:center;
+  font-family:'Press Start 2P',ui-monospace,monospace; }
+#ipso-boot.out{ animation:ibOut 320ms ease-in 1 both; }
+@keyframes ibOut{ to{opacity:0} }
+
+/* --- CRT-оверлеї --- */
+#ipso-boot .ib-scan{ position:absolute; inset:0; pointer-events:none; z-index:4; opacity:.5;
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,.30) 0 1px,transparent 1px 3px);
+  animation:ibFlick 3.2s steps(60) infinite; }
+@keyframes ibFlick{ 0%,100%{opacity:.42} 48%{opacity:.5} 50%{opacity:.34} 52%{opacity:.5} 70%{opacity:.44} 72%{opacity:.5} }
+#ipso-boot .ib-noise{ position:absolute; inset:0; pointer-events:none; z-index:3; opacity:.06;
+  mix-blend-mode:overlay; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-size:150px 150px; }
+#ipso-boot .ib-vign{ position:absolute; inset:0; pointer-events:none; z-index:5;
+  background:radial-gradient(125% 125% at 50% 50%,transparent 55%,rgba(0,0,0,.28) 82%,rgba(0,0,0,.55) 100%); }
+
+/* --- CRT power-on: тонка яскрава лінія розгортається у весь екран --- */
+#ipso-boot .ib-power{ position:absolute; inset:0; pointer-events:none; z-index:8; opacity:0; transform-origin:center;
+  background:radial-gradient(120% 60% at 50% 50%,rgba(220,255,250,.95),rgba(180,240,235,.55) 40%,transparent 76%); }
+#ipso-boot.run .ib-power{ animation:ibPower 520ms ease-out 1 both; }
+@keyframes ibPower{ 0%{opacity:0;transform:scaleY(.003)} 10%{opacity:.95;transform:scaleY(.006)}
+  30%{opacity:.9;transform:scaleY(1)} 46%{opacity:.2} 100%{opacity:0} }
+
+/* --- boot-лог (кут) --- */
+#ipso-boot .ib-log{ position:absolute; top:22px; left:22px; z-index:6; margin:0;
+  font-size:clamp(7px,1.4vw,10px); line-height:2.1; color:var(--muted,#7C89A6); }
+#ipso-boot .ib-log .l{ opacity:0; transform:translateX(-6px); }
+#ipso-boot .ib-log .l.in{ animation:ibLog 140ms ease-out both; }
+@keyframes ibLog{ to{opacity:.85; transform:none} }
+#ipso-boot .ib-log .ok{ color:var(--gold,#FFD24A); }
+
+/* --- центр: назва + підпис + шкала --- */
+#ipso-boot .ib-center{ position:relative; z-index:6; display:flex; flex-direction:column; align-items:center; gap:26px; padding:20px; }
+#ipso-boot .ib-title{ display:flex; gap:clamp(2px,.6vw,6px); line-height:1;
+  font-size:clamp(30px,9vw,84px); color:var(--gold,#FFD24A);
+  text-shadow:0 0 6px rgba(255,210,74,.55),0 0 20px rgba(255,168,40,.30); }
+#ipso-boot .ib-title span{ display:inline-block; opacity:0; transform:translateY(-10px) scale(.9); }
+#ipso-boot .ib-title span.in{ animation:ibLetter 150ms ease-out both; }
+@keyframes ibLetter{ 0%{opacity:0;transform:translateY(-10px) scale(.9)} 100%{opacity:1;transform:none} }
+/* мід-глітч: розсип літер (translateX) + RGB-розсув (text-shadow) */
+#ipso-boot .ib-title.glitch span{ animation:ibLetterG 200ms steps(2) 1 both; }
+@keyframes ibLetterG{ 0%{transform:translateX(0)} 25%{transform:translateX(-4px)} 50%{transform:translateX(5px)} 75%{transform:translateX(-2px)} 100%{transform:none} }
+#ipso-boot .ib-title.glitch{ text-shadow:3px 0 rgba(255,74,74,.9),-3px 0 rgba(74,224,224,.9),0 0 20px rgba(255,168,40,.30); }
+
+#ipso-boot .ib-sub{ font-size:clamp(8px,1.8vw,12px); letter-spacing:3px;
+  color:var(--cyan,#4AE0E0); text-shadow:0 0 6px rgba(74,224,224,.5);
+  opacity:0; transform:translateY(8px); }
+#ipso-boot .ib-sub.in{ animation:ibSub 320ms ease-out both; }
+@keyframes ibSub{ to{opacity:1; transform:none} }
+
+#ipso-boot .ib-bar{ width:min(320px,60vw); height:6px; overflow:hidden; opacity:0;
+  background:rgba(74,224,224,.10); border:1px solid rgba(74,224,224,.25); }
+#ipso-boot .ib-bar.in{ opacity:1; }
+#ipso-boot .ib-bar i{ display:block; height:100%; transform-origin:left center; transform:scaleX(0);
+  background:linear-gradient(90deg,var(--cyan,#4AE0E0),var(--gold,#FFD24A)); }
+
+@media (prefers-reduced-motion:reduce){
+  #ipso-boot .ib-scan{ animation:none; }
+  #ipso-boot.run .ib-power{ animation:none; opacity:0; }
+  #ipso-boot .ib-title span,#ipso-boot .ib-title span.in{ opacity:1; transform:none; animation:none; }
+  #ipso-boot .ib-title.glitch span{ animation:none; }
+  #ipso-boot .ib-title.glitch{ text-shadow:0 0 20px rgba(255,168,40,.30); }
+  #ipso-boot .ib-sub,#ipso-boot .ib-sub.in{ opacity:1; transform:none; animation:none; }
+  #ipso-boot .ib-log .l,#ipso-boot .ib-log .l.in{ opacity:.85; transform:none; animation:none; }
+}
+</style>
+
+<script>
+(function(){
+  var root = document.getElementById('ipso-boot');
+  if(!root || root.dataset.done) return;
+
+  // тривалість/тайминги (мс) — крути тут
+  var DUR = { logStart:320, logStep:180, titleStart:700, titleStep:70,
+              glitchAt:1300, subAt:1500, end:2700, barMs:1700 };
+
+  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var title = root.querySelector('.ib-title'),
+      sub   = root.querySelector('.ib-sub'),
+      bar   = root.querySelector('.ib-bar'),
+      bari  = bar.querySelector('i'),
+      log   = root.querySelector('.ib-log');
+
+  // boot-лог
+  [['ЗАВАНТАЖЕННЯ ЯДРА',''],['КАЛІБРУВАННЯ ДОВІРИ','OK'],
+   ['СИНХРОНІЗАЦІЯ СТРІЧКИ',''],['ПРОБУДЖЕННЯ','']].forEach(function(t){
+    var d = document.createElement('div'); d.className = 'l';
+    d.textContent = '> ' + t[0] + ' ...' + (t[1] ? ' ' : '');
+    if(t[1]){ var b=document.createElement('span'); b.className='ok'; b.textContent=t[1]; d.appendChild(b); }
+    log.appendChild(d);
+  });
+  var logs = log.querySelectorAll('.l');
+
+  // літери назви
+  'ІПСОМНІЯ'.split('').forEach(function(ch){
+    var s = document.createElement('span'); s.textContent = ch; title.appendChild(s);
+  });
+  var letters = title.querySelectorAll('span');
+
+  var timers = [], done = false;
+  function at(ms, fn){ timers.push(setTimeout(fn, ms)); }
+  function finish(){
+    if(done) return; done = true; root.dataset.done = '1';
+    timers.forEach(clearTimeout);
+    root.classList.add('out');
+    var go = function(){
+      if(root.parentNode) root.parentNode.removeChild(root);
+      document.dispatchEvent(new CustomEvent('ipso:intro-done'));
+      if(typeof window.ipsoIntroDone === 'function') window.ipsoIntroDone();
+    };
+    root.addEventListener('animationend', go, { once:true });
+    setTimeout(go, 500); // фолбек, якщо animationend не спрацює
+  }
+
+  // скіп
+  root.addEventListener('pointerdown', finish, { once:true });
+  window.addEventListener('keydown', finish, { once:true });
+
+  // хук старту (для звуку)
+  if(typeof window.ipsoIntroStart === 'function') window.ipsoIntroStart();
+
+  if(reduced){
+    for(var i=0;i<letters.length;i++) letters[i].classList.add('in');
+    sub.classList.add('in'); bar.classList.add('in'); bari.style.transform = 'scaleX(1)';
+    Array.prototype.forEach.call(logs, function(l){ l.classList.add('in'); });
+    at(1400, finish); return;
+  }
+
+  root.classList.add('run');                 // CRT power-on
+  bar.classList.add('in');
+  at(60, function(){
+    bari.style.transition = 'transform ' + DUR.barMs + 'ms cubic-bezier(.4,.5,.2,1)';
+    bari.style.transform = 'scaleX(1)';
+  });
+  Array.prototype.forEach.call(logs, function(l,i){ at(DUR.logStart + i*DUR.logStep, function(){ l.classList.add('in'); }); });
+  Array.prototype.forEach.call(letters, function(s,i){ at(DUR.titleStart + i*DUR.titleStep, function(){ s.classList.add('in'); }); });
+  at(DUR.glitchAt,       function(){ title.classList.add('glitch'); });
+  at(DUR.glitchAt + 200, function(){ title.classList.remove('glitch'); });
+  at(DUR.subAt,          function(){ sub.classList.add('in'); });
+  at(DUR.end, finish);
+})();
+</script>
 
 <div class="topbar" id="topbar" style="display:none">
   <div class="topbar-inner">
@@ -444,6 +812,7 @@ body.timer-active .feedback-fab{opacity:.55}
     </div>
     <div class="infl">
       <div class="infl-fill" id="inflFill"></div>
+      <div class="infl-warn"></div>
       <div class="infl-seg"></div>
       <div class="infl-mid"></div>
       <div class="infl-marker" id="inflMarker"></div>
@@ -460,6 +829,12 @@ body.timer-active .feedback-fab{opacity:.55}
 <div class="toast" id="toast"></div>
 
 <div class="wrap" id="app"></div>
+
+<!-- CRT-оверлеї (design-tokens.css, блок 01) -->
+<div class="crt-warm" aria-hidden="true"></div>
+<div class="crt-noise" aria-hidden="true"></div>
+<div class="crt-scanlines" aria-hidden="true"></div>
+<div class="crt-vignette" aria-hidden="true"></div>
 
 <script src="content.js"></script>
 <script src="engine.js"></script>

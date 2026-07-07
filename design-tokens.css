@@ -1,0 +1,57 @@
+/* === design-tokens.css ===================================================
+   Портовано з design/crt-lab.html, блок 01. Підключати ПЕРШИМ, до решти
+   стилів гри. Оверлеї (.crt-warm/.crt-noise/.crt-scanlines/.crt-vignette)
+   чіпляються в кінець <body>: 4 елементи position:fixed; pointer-events:none —
+   нічого не ламають у розмітці, замінюють колишні ad-hoc body::before/after. */
+:root{
+  --bg:#0B0F1A;  --panel:#131A2B;
+  --gold:#FFD24A; --red:#FF4A4A; --violet:#9B6BFF; --cyan:#4AE0E0;
+  --ink:#EAF2FF;  --muted:#7C89A6;
+  /* тепле фосфорне свічення (2 шари: гострий + м'який теплий ореол) */
+  --glow-gold:0 0 4px rgba(255,210,74,.55), 0 0 14px rgba(255,168,40,.30);
+  --glow-cyan:0 0 4px rgba(74,224,224,.55), 0 0 14px rgba(50,200,210,.28);
+  --glow-red:0 0 4px rgba(255,74,74,.60),  0 0 16px rgba(255,60,60,.32);
+  --glow-violet:0 0 4px rgba(155,107,255,.60), 0 0 16px rgba(140,90,255,.32);
+}
+/* хелпери для тексту зі свіченням — навішувати на заголовки/цифри */
+.glow-gold{ color:var(--gold); text-shadow:var(--glow-gold); }
+.glow-cyan{ color:var(--cyan); text-shadow:var(--glow-cyan); }
+.glow-red { color:var(--red);  text-shadow:var(--glow-red);  }
+.glow-vlt { color:var(--violet); text-shadow:var(--glow-violet); }
+
+/* ---- CRT-оверлеї: кожен position:fixed; pointer-events:none ----
+   Задача 1: ієрархія "декоративні оверлеї < контент < кнопки < hint-panel".
+   Оригінальний сніпет лаби ставив ці z-index у 9995-9998 (скло CRT-екрана
+   ПОВЕРХ усього) — саме тому кнопки/картки на телефоні бралися каламуттю
+   під сканлайнами. position:fixed елемент з БУДЬ-яким невід'ємним z-index
+   завжди малюється НАД звичайним (непозиціонованим) контентом, незалежно
+   від значення — тому єдиний спосіб покласти ці оверлеї СПРАВДІ під
+   контент це від'ємний z-index (шар "негативних stacking contexts",
+   який рендериться до звичайного контенту в межах кореневого контексту). */
+.crt-vignette,.crt-scanlines,.crt-noise,.crt-warm{
+  position:fixed; inset:0; pointer-events:none;
+}
+/* віньєтка — темні кути «трубки» */
+.crt-vignette{ z-index:-1;
+  background:radial-gradient(125% 125% at 50% 50%,
+     transparent 55%, rgba(0,0,0,.28) 82%, rgba(0,0,0,.55) 100%); }
+/* тепла фосфорна температура (легкий теплий центр, blend screen) */
+.crt-warm{ z-index:-2; mix-blend-mode:screen;
+  background:radial-gradient(100% 100% at 50% 32%,
+     rgba(255,180,80,.06), transparent 60%); }
+/* scanline + легке мерехтіння — анімуємо ЛИШЕ opacity (GPU, дешево) */
+.crt-scanlines{ z-index:-3; opacity:.5; will-change:opacity;
+  background:repeating-linear-gradient(to bottom,
+     rgba(0,0,0,.30) 0 1px, transparent 1px 3px);
+  animation:crtFlicker 3.4s steps(60) infinite; }
+@keyframes crtFlicker{
+  0%,100%{opacity:.42} 48%{opacity:.5} 50%{opacity:.34}
+  52%{opacity:.5} 70%{opacity:.44} 72%{opacity:.5} }
+/* дуже тонке зерно: inline-SVG turbulence у самому CSS (без файлу-картинки),
+   статичне → не анімуємо велику площу */
+.crt-noise{ z-index:-4; opacity:.05; mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-size:150px 150px; }
+
+@media (prefers-reduced-motion:reduce){
+  .crt-scanlines{ animation:none; opacity:.42; }
+}
