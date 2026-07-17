@@ -196,6 +196,51 @@
       <div class="code-wrap" data-code="pvp"></div>
     </section>
 
+    <!-- 08 GLITCH TRANSITION -->
+    <section style="background:#131A2B;border:2px solid #232E48;">
+      <div class="mod-head" style="padding:18px 22px;border-bottom:2px solid #232E48;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#9B6BFF;text-shadow:0 0 4px rgba(155,107,255,.6);">08</span>
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#EAF2FF;">ГЛІТЧ-ПЕРЕХІД між фазами</span>
+        <span style="font-size:11px;color:#7C89A6;">заміна wipe (блок 03) · розрив сигналу ~230мс · slice-зсув + RGB · контент міняється на піку</span>
+      </div>
+      <div style="padding:22px;">
+        <div id="d-glitch" style="position:relative;overflow:hidden;background:#0E1424;border:1px solid #232E48;min-height:190px;display:flex;align-items:center;justify-content:center;">
+          <div id="glitch-pane" style="font-family:'Press Start 2P',monospace;font-size:15px;color:#4AE0E0;text-shadow:0 0 4px rgba(74,224,224,.55),0 0 14px rgba(50,200,210,.28);">ФАЗА · СТРІЧКА</div>
+          <div class="glitch-fx" aria-hidden="true">
+            <span class="gf-band"></span><span class="gf-band"></span><span class="gf-band"></span><span class="gf-band"></span><span class="gf-band"></span>
+            <span class="gf-rgb gf-r"></span><span class="gf-rgb gf-c"></span>
+          </div>
+        </div>
+        <div style="margin-top:16px;"><button id="b-glitch" class="btn btn--feedback" style="font-family:'Press Start 2P',monospace;font-size:10px;">▶ ГЛІТЧ-ПЕРЕХІД</button></div>
+      </div>
+      <div class="code-wrap" data-code="glitch"></div>
+    </section>
+
+    <!-- 09 INTRO -->
+    <section style="background:#131A2B;border:2px solid #232E48;">
+      <div class="mod-head" style="padding:18px 22px;border-bottom:2px solid #232E48;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#FFD24A;text-shadow:0 0 4px rgba(255,210,74,.55);">09</span>
+        <span style="font-family:'Press Start 2P',monospace;font-size:12px;color:#EAF2FF;">ІНТРО «ІПСОМНІЯ» · перший тап</span>
+        <span style="font-size:11px;color:#7C89A6;">CRT-спалах → друк по літерах → мід-глітч → підпис → fade у гру · скіп по тапу</span>
+      </div>
+      <div style="padding:22px;">
+        <div id="d-intro" style="position:relative;overflow:hidden;background:#0E1424;border:1px solid #232E48;min-height:250px;">
+          <!-- фейковий «екран гри» під заставкою -->
+          <div style="position:absolute;inset:0;padding:16px;opacity:.45;">
+            <div style="height:18px;width:64%;background:#131A2B;border:1px solid #232E48;margin-bottom:12px;"></div>
+            <div style="height:52px;background:#131A2B;border:1px solid #232E48;margin-bottom:10px;"></div>
+            <div style="height:52px;background:#131A2B;border:1px solid #232E48;"></div>
+          </div>
+          <div id="intro-ovl" class="intro" aria-hidden="true" style="position:absolute;z-index:5;">
+            <div class="intro-word"></div>
+            <div class="intro-sub">ТРЕНАЖЕР ІНФОСТІЙКОСТІ</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;"><button id="b-intro" class="btn btn--gold" style="font-family:'Press Start 2P',monospace;font-size:10px;">▶ ЗАПУСТИТИ ІНТРО</button></div>
+      </div>
+      <div class="code-wrap" data-code="intro"></div>
+    </section>
+
     <p style="font-size:11px;color:#546079;text-align:center;margin:8px 0 0;line-height:1.8;">Усі анімації — лише <code style="color:#7C89A6;">transform</code>/<code style="color:#7C89A6;">opacity</code> · без filter-анімацій на великих площах · <code style="color:#7C89A6;">prefers-reduced-motion</code> вимикає рух · оверлеї нічого не ламають у розмітці.</p>
   </div>
 
@@ -230,6 +275,8 @@ class Component extends DCLogic {
       card:    [['CSS', CSS.card], ['JS · поява та позначення загрози', JS.card]],
       scale:   [['CSS', CSS.scale], ['JS · setInfluence(el, 0..100)', JS.scale]],
       pvp:     [['CSS', CSS.pvp], ['JS · playReport(root, verdict)', JS.pvp]],
+      glitch:  [['CSS', CSS.glitch], ['JS · glitchTransition(container, swap, onGlitchStart)', JS.glitch]],
+      intro:   [['CSS', CSS.intro], ['JS · playIntro(root, onDone, onIntroStart)', JS.intro]],
     };
     R.querySelectorAll('.code-wrap').forEach(w=>{
       const key = w.getAttribute('data-code');
@@ -321,8 +368,66 @@ class Component extends DCLogic {
     });
     applyVerdict();
 
+    // 08 glitch-перехід
+    let gState = 0;
+    const gLabels = ['ФАЗА · СТРІЧКА', 'ФАЗА · OSINT-ЛУПА', 'ФАЗА · ВЕРДИКТ'];
+    const gColors = ['#4AE0E0', '#9B6BFF', '#FFD24A'];
+    const glitchTransition = (container, swap, onStart)=>{
+      const fx = container.querySelector('.glitch-fx');
+      onStart && onStart();
+      fx.classList.remove('run'); void fx.offsetWidth; fx.classList.add('run');
+      const reduced = R.classList.contains('reduced') || matchMedia('(prefers-reduced-motion:reduce)').matches;
+      const dur = reduced ? 100 : 230;
+      setTimeout(swap, Math.round(dur*0.45));
+      fx.addEventListener('animationend', ()=> fx.classList.remove('run'), {once:true});
+    };
+    R.querySelector('#b-glitch').addEventListener('click', ()=>{
+      glitchTransition(R.querySelector('#d-glitch'), ()=>{
+        gState = (gState+1) % gLabels.length;
+        const p = R.querySelector('#glitch-pane');
+        p.textContent = gLabels[gState];
+        p.style.color = gColors[gState];
+        p.style.textShadow = '0 0 4px currentColor,0 0 14px currentColor';
+      });
+    });
+
+    // 09 інтро
+    const introEl = R.querySelector('#intro-ovl');
+    const playIntro = (rootEl, onDone)=>{
+      const word = rootEl.querySelector('.intro-word');
+      const sub  = rootEl.querySelector('.intro-sub');
+      const reduced = R.classList.contains('reduced') || matchMedia('(prefers-reduced-motion:reduce)').matches;
+      word.textContent = '';
+      const letters = 'ІПСОМНІЯ'.split('').map(ch=>{
+        const s = document.createElement('span'); s.textContent = ch; word.appendChild(s); return s;
+      });
+      let done = false;
+      const finish = ()=>{ if(done) return; done = true;
+        rootEl.classList.add('out');
+        rootEl.addEventListener('animationend', ()=>{ rootEl.style.display='none'; onDone && onDone(); }, {once:true});
+      };
+      rootEl.addEventListener('pointerdown', finish, {once:true});
+      if(reduced){ letters.forEach(s=>s.classList.add('in')); sub.classList.add('in'); setTimeout(finish, 700); return; }
+      rootEl.classList.add('flash');
+      const STAG = 60;
+      letters.forEach((s,i)=> setTimeout(()=> s.classList.add('in'), 180 + i*STAG));
+      const mid = Math.round(180 + letters.length*STAG*0.5);
+      setTimeout(()=>{ word.classList.add('glitch'); setTimeout(()=> word.classList.remove('glitch'), 180); }, mid);
+      const wordEnd = 180 + letters.length*STAG + 120;
+      setTimeout(()=> sub.classList.add('in'), wordEnd);
+      setTimeout(finish, wordEnd + 500);
+    };
+    const runIntro = ()=>{
+      introEl.style.display = 'flex';
+      introEl.classList.remove('out','flash');
+      introEl.querySelector('.intro-word').classList.remove('glitch');
+      introEl.querySelector('.intro-sub').classList.remove('in');
+      playIntro(introEl, ()=>{});
+    };
+    R.querySelector('#b-intro').addEventListener('click', runIntro);
+
     // перший показ
-    requestAnimationFrame(()=>{ boot(); setTimeout(playReport, 400); });
+    requestAnimationFrame(()=>{ runIntro(); boot(); setTimeout(playReport, 600); });
   }
 
   // -------- код-панель з кнопкою копіювання --------
@@ -560,7 +665,95 @@ pvp:
 
 @media (prefers-reduced-motion:reduce){
   .pvp-row,.pvp-row.on{ opacity:1; transform:none; animation:none; }
-  .stamp,.stamp.hit{ opacity:1; transform:none; animation:none; } }`
+  .stamp,.stamp.hit{ opacity:1; transform:none; animation:none; } }`,
+
+glitch:
+`/* === Глітч-перехід між фазами (блок 08) — заміна wipe ====================
+   Один оверлей у контейнері екрана (у контейнера position:relative):
+     <div class="glitch-fx" aria-hidden="true">
+       <span class="gf-band"></span> ×5
+       <span class="gf-rgb gf-r"></span><span class="gf-rgb gf-c"></span>
+     </div>
+   Тільки transform:translateX / opacity (без filter/clip-path на площі → 60fps).
+   Тривалість — у --glitch-dur. steps(1) дає РІЗКІ кадри, а не плавне ковзання. */
+:root{ --glitch-dur:230ms; }
+.glitch-fx{ position:absolute; inset:0; z-index:60; pointer-events:none; opacity:0; }
+.glitch-fx.run{ animation:gfShow var(--glitch-dur) steps(1) 1 both; }
+@keyframes gfShow{ 0%{opacity:1} 100%{opacity:0} }
+
+/* смуги «розриву сигналу» — кожна свій зсув через --tx */
+.gf-band{ position:absolute; left:-10%; width:120%; opacity:0; transform:translateX(0);
+  background:var(--panel); box-shadow:0 0 0 1px rgba(74,224,224,.10) inset; }
+.gf-band:nth-child(1){ top:0;   height:22%; --tx:-9%; }
+.gf-band:nth-child(2){ top:22%; height:16%; --tx:7%;  }
+.gf-band:nth-child(3){ top:38%; height:24%; --tx:-5%; }
+.gf-band:nth-child(4){ top:62%; height:14%; --tx:9%;  }
+.gf-band:nth-child(5){ top:76%; height:24%; --tx:-6%; }
+.glitch-fx.run .gf-band{ animation:gfBand var(--glitch-dur) steps(1) 1 both; }
+@keyframes gfBand{
+  0%  {opacity:0;  transform:translateX(0)}
+  14% {opacity:.96;transform:translateX(var(--tx))}
+  30% {opacity:.9; transform:translateX(calc(var(--tx) * -.6))}
+  46% {opacity:.96;transform:translateX(calc(var(--tx) * .35))}
+  62% {opacity:.8; transform:translateX(0)}
+  100%{opacity:0;  transform:translateX(0)} }
+
+/* RGB-розсув — два тонкі шари, спалах на 1 кадр */
+.gf-rgb{ position:absolute; inset:0; opacity:0; mix-blend-mode:screen; }
+.gf-r{ background:rgba(255,74,74,.12); }
+.gf-c{ background:rgba(74,224,224,.12); }
+.glitch-fx.run .gf-r{ animation:gfR var(--glitch-dur) steps(1) 1 both; }
+.glitch-fx.run .gf-c{ animation:gfC var(--glitch-dur) steps(1) 1 both; }
+@keyframes gfR{ 0%,100%{opacity:0;transform:translateX(0)} 16%{opacity:1;transform:translateX(3px)} 40%{opacity:0} }
+@keyframes gfC{ 0%,100%{opacity:0;transform:translateX(0)} 16%{opacity:1;transform:translateX(-3px)} 46%{opacity:0} }
+
+@media (prefers-reduced-motion:reduce){
+  .glitch-fx.run{ animation:gfFade 100ms linear 1 both; }
+  .glitch-fx.run .gf-band,.glitch-fx.run .gf-rgb{ animation:none; opacity:0; }
+}
+@keyframes gfFade{ 0%{opacity:.55} 100%{opacity:0} }`,
+
+intro:
+`/* === Інтро «ІПСОМНІЯ» (блок 09) — перший тап по грі ======================
+   Повноекранний оверлей; JS сам розбиває слово на <span>-літери:
+     <div class="intro" aria-hidden="true">
+       <div class="intro-word"></div>
+       <div class="intro-sub">ТРЕНАЖЕР ІНФОСТІЙКОСТІ</div>
+     </div>
+   Тайминги — у CSS-змінних. Тільки transform/opacity. */
+:root{ --intro-stagger:60ms; --intro-dur:1400ms; }
+.intro{ position:fixed; inset:0; z-index:200; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; }
+.intro.flash{ animation:introFlash 160ms steps(6) 1 both; }
+@keyframes introFlash{ 0%{opacity:0} 18%{opacity:.75} 34%{opacity:.18} 60%{opacity:1} 100%{opacity:1} }
+.intro.out{ animation:introOut 260ms ease-in 1 both; }
+@keyframes introOut{ to{opacity:0} }
+
+.intro-word{ display:flex; gap:2px; font-family:'Press Start 2P',monospace;
+  font-size:clamp(28px,7vw,64px); color:var(--gold); text-shadow:var(--glow-gold); }
+.intro-word span{ opacity:0; transform:translateY(-8px) scale(.9); }
+.intro-word span.in{ animation:letterIn 140ms ease-out both; }
+@keyframes letterIn{ 0%{opacity:0;transform:translateY(-8px) scale(.9)} 100%{opacity:1;transform:none} }
+
+/* мід-глітч: розсип літер (translateX) + RGB-розсув через text-shadow */
+.intro-word.glitch span{ animation:letterGlitch 180ms steps(2) 1 both; }
+@keyframes letterGlitch{ 0%{transform:translateX(0)} 25%{transform:translateX(-3px)}
+  50%{transform:translateX(4px)} 75%{transform:translateX(-2px)} 100%{transform:none} }
+.intro-word.glitch{ text-shadow:2px 0 rgba(255,74,74,.9), -2px 0 rgba(74,224,224,.9), var(--glow-gold); }
+
+.intro-sub{ font-family:'Press Start 2P',monospace; font-size:clamp(8px,1.6vw,11px);
+  color:var(--cyan); text-shadow:var(--glow-cyan); letter-spacing:2px;
+  opacity:0; transform:translateY(6px); }
+.intro-sub.in{ animation:subIn 300ms ease-out both; }
+@keyframes subIn{ to{opacity:1; transform:none} }
+
+@media (prefers-reduced-motion:reduce){
+  .intro.flash{ animation:none; }
+  .intro-word span,.intro-word span.in{ opacity:1; transform:none; animation:none; }
+  .intro-word.glitch span{ animation:none; }
+  .intro-word.glitch{ text-shadow:var(--glow-gold); }
+  .intro-sub,.intro-sub.in{ opacity:1; transform:none; animation:none; }
+}`
     };
   }
 
@@ -638,6 +831,68 @@ function playReport(root, verdict /* 'break' | 'hold' */){
     void stamp.offsetWidth;
     stamp.classList.add('hit');          // scale + glow «печатка»
   }, reduced ? 0 : 120 + rows.length * 180 + 120);
+}`,
+
+glitch:
+`// Глітч-перехід між фазами (блок 08).
+// container — екран із position:relative і .glitch-fx всередині.
+// swap() викликається на піку глітча — там гра підмінює контент екрана.
+// onGlitchStart — необов'язковий хук (гра сама повісить звук).
+function glitchTransition(container, swap, onGlitchStart){
+  const fx = container.querySelector('.glitch-fx');
+  onGlitchStart && onGlitchStart();
+  fx.classList.remove('run');
+  void fx.offsetWidth;                 // reflow → рестарт
+  fx.classList.add('run');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dur = reduced ? 100 : 230;     // тримати синхронно з --glitch-dur
+  setTimeout(swap, Math.round(dur * 0.45)); // ~на піку розриву
+  fx.addEventListener('animationend', () => fx.classList.remove('run'), { once:true });
+}`,
+
+intro:
+`// Інтро «ІПСОМНІЯ» (блок 09). Викликати при першому тапі по грі.
+// root — оверлей .intro з порожнім .intro-word і .intro-sub всередині.
+// onDone — колбек після завершення; onIntroStart — хук для звуку.
+// Повертає функцію skip() (можна повісити на глобальний тап).
+function playIntro(root, onDone, onIntroStart){
+  onIntroStart && onIntroStart();
+  const word = root.querySelector('.intro-word');
+  const sub  = root.querySelector('.intro-sub');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  word.textContent = '';
+  const letters = 'ІПСОМНІЯ'.split('').map(ch => {
+    const s = document.createElement('span'); s.textContent = ch;
+    word.appendChild(s); return s;
+  });
+
+  let done = false;
+  const finish = () => {
+    if (done) return; done = true;
+    root.classList.add('out');
+    root.addEventListener('animationend',
+      () => { root.style.display = 'none'; onDone && onDone(); }, { once:true });
+  };
+  root.addEventListener('pointerdown', finish, { once:true }); // скіп по тапу
+
+  if (reduced){
+    letters.forEach(s => s.classList.add('in'));
+    sub.classList.add('in');
+    setTimeout(finish, 700);
+    return finish;
+  }
+
+  root.classList.add('flash');
+  const STAG = 60;
+  letters.forEach((s, i) => setTimeout(() => s.classList.add('in'), 180 + i * STAG));
+  const mid = Math.round(180 + letters.length * STAG * 0.5);
+  setTimeout(() => { word.classList.add('glitch');
+    setTimeout(() => word.classList.remove('glitch'), 180); }, mid);
+  const wordEnd = 180 + letters.length * STAG + 120;
+  setTimeout(() => sub.classList.add('in'), wordEnd);
+  setTimeout(finish, wordEnd + 500);
+  return finish;
 }`
     };
   }

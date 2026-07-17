@@ -10,6 +10,348 @@ const FEEDBACK_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeDB4fjDf7NMWksBC
 function feedbackLink(label){
   return '<a href="'+FEEDBACK_URL+'" target="_blank" rel="noopener" class="btn" style="text-decoration:none">'+label+'</a>';
 }
+/* =====================================================================
+   МОВА / i18n (перемикач «Іпсомнії» на англійську, Stage 1 брифу):
+   UI — словник РУШІЙНИХ рядків (усе, що пишеться прямо в engine.js:
+   заголовки фаз, кнопки, тости, лейбли). Контент операцій (SCENARIOS)
+   живе в content.js і перемикається окремо через applyLang() — сюди
+   не дублюється. Значення в словнику можуть бути функцією (для рядків
+   із динамічною частиною) або рядком; t(key,...args) віддає активну
+   мову з фолбеком на uk, якщо ключа немає.
+   ===================================================================== */
+const UI = {
+  uk: {
+    trainingPlatform:"ПЛАТФОРМА ТРЕНУВАННЯ ІНФОСТІЙКОСТІ",
+    modeLead:"Одне ядро зі спільною моделлю аудиторії та наративів. Режими працюють як контент-паки поверх нього.",
+    playBadge:"ГРАТИ",
+    coreModeName:"ІНФОСТІЙКІСТЬ",
+    coreModeDesc:"Базовий режим для будь-кого. Розпізнавання російських ворожих наративів, аналіз технік, контрнаративи. Кампанія з 6 операцій.",
+    soonBadge:"СКОРО",
+    mobileModeName:"МОБІЛЬНІ ГРУПИ",
+    mobileModeDesc:"Для виїзних мистецьких груп: читання аудиторії за чотирма шкалами, побудова програми, адаптація на ходу. На базі карткової версії.",
+    intlModeName:"МІЖНАРОДНИЙ",
+    intlModeDesc:"Дипломатичні та медійні сценарії для скептичних аудиторій. Прев'ю вже всередині базового режиму, операція 4.",
+    redTeamBadge:"СТВОРИТИ",
+    redTeamModeName:"ЧЕРВОНА КОМАНДА",
+    redTeamModeDesc:"Зворотний режим: сконструюй ІПСО сам. Ціль, емоція, техніка, канал. Найшвидший шлях зрозуміти захист, це раз побувати атакою.",
+    footerNote:"ІПСОМНІЯ v0.3 · DEMO BUILD · КУЛЬТУРНІ СИЛИ",
+    chooseRole:"ОБЕРИ РОЛЬ",
+    whoAreYou:"Хто ти в цій кампанії?",
+    roleLead:"Роль визначає темп і ціну помилки. Російські ворожі наративи не схожі на пропаганду: вони схожі на інсайд, на обережного експерта, на голос миру. Твоя робота: знайти їх у стрічці, назвати техніку і встигнути з контрходом, поки вакуум не заповнив ворог.",
+    back:"НАЗАД",
+    campaignMap:"МАПА КАМПАНІЇ",
+    meanwhile:"ТИМ ЧАСОМ",
+    operationWord:"ОПЕРАЦІЯ",
+    intlPreviewSuffix:" · ПРЕВ'Ю МІЖНАРОДНОГО АДДОНУ",
+    finalSuffix:" · ФІНАЛ",
+    openFeed:"ВІДКРИТИ СТРІЧКУ",
+    attackLaunched:"Атаку запущено",
+    lowTrustToast:"Вам не вірять. Вкидам вірять охочіше",
+    phase1Title:"ФАЗА 1 · РОЗПІЗНАЙ",
+    highActivityBanner:"⚠ ПІДВИЩЕНА АКТИВНІСТЬ ІПСО",
+    feedTask:"Познач <b>усі російські ворожі наративи</b> й підтверди. Скільки їх, не підказуємо. Хибна тривога теж коштує: бачити ІПСО там, де його нема, це програш іншого типу.",
+    osintBar:(left,total)=>'🛰 <b>OSINT</b> · ПЕРЕВІРКА ДЖЕРЕЛА · лишилось '+left+' / '+total,
+    confirmSelection:"ПІДТВЕРДИТИ ВИБІР",
+    osintCheckTitle:"OSINT: перевірити джерело",
+    moderationFlagged:"⚠ МОДЕРАЦІЯ ВЖЕ ПОЗНАЧИЛА: ФЕЙК",
+    osintDossier:"🛰 OSINT-ДОСЬЄ КАНАЛУ",
+    osintCreated:"СТВОРЕНО", osintActivity:"АКТИВНІСТЬ", osintAvatar:"АВАТАРКА", osintNames:"НАЗВИ",
+    osintOldPosts:"СТАРІ ПОСТИ", osintReposted:"РЕПОСТЯТЬ",
+    close:"ЗАКРИТИ",
+    osintExhausted:"OSINT вичерпано",
+    tagSubtleFound:"✓ РОСІЙСЬКИЙ ТОНКИЙ НАРАТИВ ×2", tagFound:"✓ РОСІЙСЬКИЙ НАРАТИВ", tagMissed:"ПРОПУЩЕНО", tagFalseAlarm:"ХИБНА ТРИВОГА",
+    recognition:"Розпізнавання", misses:"Промахи",
+    nextTechAnalysis:"ДАЛІ · АНАЛІЗ ТЕХНІКИ",
+    phase1bTitle:"ФАЗА 1 · УТОЧНЕННЯ",
+    accurate:"Точно", wrong:"Хибно",
+    unexpectedEvent:"НЕОЧІКУВАНА ПОДІЯ",
+    acceptAndContinue:"ПРИЙНЯТИ Й ПРАЦЮВАТИ ДАЛІ",
+    unexpectedEvent15s:"НЕОЧІКУВАНА ПОДІЯ · 15 СЕКУНД",
+    eventLabel:"Подія",
+    timeUpPrefix:"Час вийшов, рішення прийняли за тебе. ",
+    continueBtn:"ПРОДОВЖИТИ",
+    tagSubtle:"ТОНКИЙ", tagExplicit:"ЯВНИЙ",
+    revealedNarrativesLabel:(op)=>'РОЗКРИТІ НАРАТИВИ · ДОВІДКА · ОПЕРАЦІЯ «'+op+'»',
+    phase2Title:"ФАЗА 2 · НАЗВИ ТЕХНІКУ",
+    badgeToast:(b)=>'БЕЙДЖ: '+b,
+    techRevealed:"Техніку розкрито", wrongAnalysis:"Хибний аналіз",
+    nextCounter:"ДАЛІ · ПРОТИДІЯ",
+    chooseTargetBanner:"📡 ОБИРАЄШ НАПРЯМОК УДАРУ",
+    phase3AudienceTitle:"ФАЗА 3 · НАПРЯМОК",
+    bothDirectionsNote:"Обидва напрямки правильні. У повній версії команди ділять їх між собою, у демо обираєш один.",
+    liveAirBanner:"🔴 ЕФІР ЖИВИЙ · ВОРОЖА ВЕРСІЯ ШИРИТЬСЯ",
+    phaseCounterTitle:(n)=>'ФАЗА '+n+' · КОНТРНАРАТИВ',
+    vacuumNote:"вакуум працює на ворога",
+    counterWorks:"Контрнаратив працює", partialEffect:"Частковий ефект", ipsoFavorMove:"Хід на користь ІПСО",
+    nextDebrief:"ДАЛІ · РОЗБІР",
+    debriefTitle:"РОЗБІР ОПЕРАЦІЇ",
+    rankOperation:"ОЦІНКА ОПЕРАЦІЇ ▸",
+    failedTitle:"ОПЕРАЦІЮ ПРОВАЛЕНО",
+    failedRank:"НАРАТИВ ЗАКРІПИВСЯ",
+    failedText:"Вплив ІПСО дійшов критичної межі: ворожа версія закріпилась і стала правдою за замовчуванням для твоєї аудиторії. Витіснити наратив, що вже вкорінився, у рази дорожче, ніж не пустити його. У тренажері є розкіш, якої нема в реальності: розберись, які рішення віддали поле, і зайди в операцію ще раз.",
+    replayOp:"↻ ПЕРЕПРОЙТИ ОПЕРАЦІЮ",
+    restartCampaign:"ПОЧАТИ КАМПАНІЮ ЗАНОВО",
+    rankTitle:(node)=>'ОЦІНКА ОПЕРАЦІЇ · '+node,
+    rankSubA:"бездоганно", rankSubB:"одна помилка, тримайся", rankSubC:"є над чим працювати",
+    statRecognition:"Розпізнавання", statTechAnalysis:"Аналіз техніки", statCounter:"Контрхід", statSpeed:"Швидкість",
+    missedWord:"пропущено", falseWord:"хибних", cleanWord:"чисто",
+    correctMark:"✓ вірно", wrongMark:"✗ хибно",
+    optimalCounter:"оптимальний", midCounter:"середній", harmfulCounter:"шкідливий",
+    timeUpVacuum:"час вичерпано · вакуум", timeLeftFrac:(s,f)=>s+'с лишок · '+f+'%',
+    summaryBtn:"ПІДСУМОК ▸", toMapBtn:"ДО МАПИ ▸",
+    silenceEventTitle:"⚠ ПОДІЯ: ГУЧНЕ МОВЧАННЯ",
+    silenceEventText:"Кілька разів ти обирав «заспокоїти» замість «відповісти». Зовні ставало тихіше, але питання без відповідей нікуди не дівались. Вони консервувались і тепер вибухнули падінням довіри. Гучне мовчання не означає відсутності проблем. Воно означає їхню консервацію. Стійкість −10.",
+    loudSilenceLabel:"Гучне мовчання",
+    campaignSummary:"ПІДСУМОК КАМПАНІЇ",
+    campaignSummaryRole:(role)=>'ПІДСУМОК КАМПАНІЇ · '+role,
+    rankResilient:"ІНФОСТІЙКИЙ", rankResilientNote:"Лінія впливу на твоєму боці. Ти читаєш техніки, а не заголовки.",
+    rankLiterate:"МЕДІАГРАМОТНИЙ", rankLiterateNote:"Основу тримаєш. Частина рішень зіграла на ворожий фрейм, розбори підкажуть де саме.",
+    rankVictim:"ЖЕРТВА МЕТОДИЧКИ", rankVictimNote:"Наративи пройшли крізь оборону. Хороша новина: тепер ти знаєш, де саме. А це вже половина захисту.",
+    finalResilience:"Фінальна стійкість", trustInYou:"Довіра до тебе", minTrust:"Мін. довіра за кампанію",
+    accurateDecisions:"Точні рішення", ofWord:"з", techBadges:"Бейджі технік",
+    vulnerabilityProfile:"ПРОФІЛЬ ВРАЗЛИВОСТІ",
+    resilientTo:"Стійкий до:", workZone:"Зона роботи:", cleanRun:"Чистий прохід по всіх техніках. Рідкість.",
+    profileNote:"У повній версії профіль накопичується між сесіями і дає тренеру картину по підрозділу: які техніки пробивають людей найчастіше.",
+    demoTitle:"ТИ ЩОЙНО ПРОЙШОВ ДЕМО-ЗБІРКУ ЯДРА",
+    demoText:"Кампанія з 6 операцій, OSINT, аналіз технік і контрходи — все, що ти бачив, уже працює. Нижче — те, чого в демо ще нема.",
+    fullVersionAdds:"ПОВНА ВЕРСІЯ ДОДАСТЬ",
+    fullVersionList:["Прогресію: починаєш простим пресофіцером, прокачуєш персонажа, відкриваєш складніші ролі й нові регіони мапи","Вільний вибір операцій на мапі — у демо порядок фіксований заради наскрізного сюжету","Прикладне ворогознавство: дерево знань про техніки, що відкриває нові контрходи","Командний режим: два гравці, одна ситуація, порівняння рішень","Аналітику для тренера і регіональні профілі стійкості"],
+    addonsInProgress:"АДДОНИ В РОЗРОБЦІ",
+    addonsList:["МОБІЛЬНІ ГРУПИ: читання аудиторії, побудова виступу. На базі карткової версії","МІЖНАРОДНИЙ: дипломатичні сценарії, скептичні аудиторії","ЧЕРВОНА КОМАНДА: сконструюй ІПСО сам і зрозумій захист зсередини"],
+    feedbackCta:"ЗАЛИШИТИ ФІДБЕК — 2 ХВИЛИНИ",
+    againOtherRole:"ЩЕ РАЗ · ІНША РОЛЬ",
+    toModes:"ДО РЕЖИМІВ",
+    brokenPackTitle:"ПОШКОДЖЕНИЙ ПАКЕТ",
+    brokenPackH2:"Не вдалось прочитати операцію",
+    brokenPackText:"Посилання обірване або зібране в несумісній версії. Відкрий звичайну гру й спробуй згенерувати пакет заново.",
+    toStandardGame:"ДО ЗВИЧАЙНОЇ ГРИ ▸",
+    pvpTitle:"РОЗБІР ЧУЖОЇ ОПЕРАЦІЇ",
+    pvpH2:"ОПЕРАЦІЮ СТВОРИВ ІНШИЙ ГРАВЕЦЬ",
+    pvpBreached:"ПРОБИТО", pvpHeld:"ВСТОЯВ",
+    pvpBreachedText:"Хоч один закладений наратив пройшов повз тебе. Автор влучив у твою сліпу зону.",
+    pvpHeldText:"Ти розкрив кожен наратив, який автор заклав. Атака не пройшла.",
+    pvpTechLabel:"ТЕХНІКИ · ЗАКЛАВ АВТОР vs РОЗКРИВ ТИ",
+    pvpFoundMark:"✓ розкрито", pvpMissedMark:"✗ пропущено",
+    pvpTechAnalysis:"Аналіз техніки", pvpFinalResilience:"Фінальна стійкість",
+    createYourOp:"СТВОРИТИ СВОЮ ОПЕРАЦІЮ ▸", toStandardGameNoArrow:"ДО ЗВИЧАЙНОЇ ГРИ",
+    commanderChannel:"▸ ВХІДНЕ · КОМАНДИР",
+    commanderName:"КОМАНДИР",
+    pauseHintNote:"⏸ пауза: підказка Командира",
+    ok:"OK",
+    skip:"SKIP ▸",
+    soundTitle:"Звук",
+    leaveFeedback:"Залишити фідбек",
+    feedbackFabLabel:"ФІДБЕК",
+    seeMore:"Показати більше", seeLess:"Згорнути",
+    langFabToEn:"Switch to English", langFabToUk:"Перемкнути на українську",
+    vacuumWord:"ВАКУУМ", vacuumLabel:"Вакуум", vacuumEnemyNote:"ворог заповнює тишу",
+    infoVacuumLabel:"Інфовакуум",
+    lowTrustPenalty:"Довіра низька: вам менше вірять",
+    streakLabel:(s,mult)=>'СЕРІЯ '+s+mult,
+    trustLabel:(v)=>'ДОВІРА '+Math.round(v),
+    trustDelta:(applied)=>'ДОВІРА '+(applied>0?'+':'')+applied,
+    /* ФЛОУ-РЕФАКТОРИНГ, Фаза 1: короткий вердикт у місії + звіт AAR після неї */
+    verdictRight:"✅ ВІРНО.", verdictWrong:"❌ ХИБНО.",
+    fullReportNote:"Повний розбір — у звіті після операції.",
+    aarTitle:"ЗВІТ ПРО ОПЕРАЦІЮ",
+    aarFeedSection:"РОЗБІР СТРІЧКИ",
+    aarTechSection:"АНАЛІЗ ТЕХНІКИ", aarCounterSection:"КОНТРХІД",
+    aarYourPick:"ТВІЙ ВИБІР", aarRightPick:"ПРАВИЛЬНО БУЛО",
+    aarResilDelta:"Стійкість за операцію", aarTrustDelta:"Довіра за операцію",
+    aarMarkHit:"✓ РОСІЙСЬКИЙ ВОРОЖИЙ · РОЗПІЗНАНО", aarMarkMiss:"✗ РОСІЙСЬКИЙ ВОРОЖИЙ · ПРОПУЩЕНО",
+    aarMarkFalse:"✗ ХИБНА ТРИВОГА", aarMarkClean:"✓ ЧЕСНИЙ · ЧИСТО",
+    aarDetailShow:"ДЕТАЛЬНИЙ РОЗБІР ▾", aarDetailHide:"ЗГОРНУТИ РОЗБІР ▴",
+  },
+  en: {
+    trainingPlatform:"INFO-RESILIENCE TRAINING PLATFORM",
+    modeLead:"One core with a shared audience and narrative model. Modes work as content packs on top of it.",
+    playBadge:"PLAY",
+    coreModeName:"RESILIENCE",
+    coreModeDesc:"A base mode for anyone. Spotting Russian hostile narratives, technique analysis, counter-narratives. A campaign of 6 operations.",
+    soonBadge:"SOON",
+    mobileModeName:"MOBILE UNITS",
+    mobileModeDesc:"For touring arts groups: reading the audience on four scales, building a program, adapting on the go. Based on the card version.",
+    intlModeName:"INTERNATIONAL",
+    intlModeDesc:"Diplomatic and media scenarios for skeptical audiences. A preview already lives inside the base mode, operation 4.",
+    redTeamBadge:"CREATE",
+    redTeamModeName:"RED TEAM",
+    redTeamModeDesc:"The reverse mode: build a disinformation op yourself. Target, emotion, technique, channel. The fastest way to understand defense is to be the attack once.",
+    footerNote:"IPSOMNIA v0.3 · DEMO BUILD · CULTURE FORCES",
+    chooseRole:"CHOOSE A ROLE",
+    whoAreYou:"Who are you in this campaign?",
+    roleLead:"Your role sets the pace and the cost of a mistake. Russian hostile narratives don't look like propaganda: they look like a leak, a cautious expert, a voice for peace. Your job: find them in the feed, name the technique, and land a counter before the vacuum fills up with the enemy.",
+    back:"BACK",
+    campaignMap:"CAMPAIGN MAP",
+    meanwhile:"MEANWHILE",
+    operationWord:"OPERATION",
+    intlPreviewSuffix:" · INTERNATIONAL ADD-ON PREVIEW",
+    finalSuffix:" · FINAL",
+    openFeed:"OPEN FEED",
+    attackLaunched:"Attack launched",
+    lowTrustToast:"They don't trust you. Leaks are trusted more readily",
+    phase1Title:"PHASE 1 · SPOT IT",
+    highActivityBanner:"⚠ ELEVATED DISINFORMATION ACTIVITY",
+    feedTask:"Mark <b>all Russian hostile narratives</b> and confirm. We won't tell you how many there are. A false alarm costs too: seeing disinformation where there is none is a different kind of loss.",
+    osintBar:(left,total)=>'🛰 <b>OSINT</b> · SOURCE CHECK · '+left+' / '+total+' left',
+    confirmSelection:"CONFIRM SELECTION",
+    osintCheckTitle:"OSINT: check the source",
+    moderationFlagged:"⚠ MODERATION ALREADY FLAGGED: FAKE",
+    osintDossier:"🛰 OSINT CHANNEL DOSSIER",
+    osintCreated:"CREATED", osintActivity:"ACTIVITY", osintAvatar:"AVATAR", osintNames:"NAME HISTORY",
+    osintOldPosts:"OLD POSTS", osintReposted:"REPOSTED BY",
+    close:"CLOSE",
+    osintExhausted:"OSINT exhausted",
+    tagSubtleFound:"✓ RUSSIAN SUBTLE NARRATIVE ×2", tagFound:"✓ RUSSIAN NARRATIVE", tagMissed:"MISSED", tagFalseAlarm:"FALSE ALARM",
+    recognition:"Recognition", misses:"Misses",
+    nextTechAnalysis:"NEXT · TECHNIQUE ANALYSIS",
+    phase1bTitle:"PHASE 1 · CLARIFICATION",
+    accurate:"Accurate", wrong:"Wrong",
+    unexpectedEvent:"UNEXPECTED EVENT",
+    acceptAndContinue:"ACCEPT AND CONTINUE",
+    unexpectedEvent15s:"UNEXPECTED EVENT · 15 SECONDS",
+    eventLabel:"Event",
+    timeUpPrefix:"Time ran out, the decision was made for you. ",
+    continueBtn:"CONTINUE",
+    tagSubtle:"SUBTLE", tagExplicit:"EXPLICIT",
+    revealedNarrativesLabel:(op)=>'REVEALED NARRATIVES · REFERENCE · OPERATION «'+op+'»',
+    phase2Title:"PHASE 2 · NAME THE TECHNIQUE",
+    badgeToast:(b)=>'BADGE: '+b,
+    techRevealed:"Technique revealed", wrongAnalysis:"Wrong analysis",
+    nextCounter:"NEXT · COUNTER",
+    chooseTargetBanner:"📡 CHOOSING THE DIRECTION OF THE STRIKE",
+    phase3AudienceTitle:"PHASE 3 · DIRECTION",
+    bothDirectionsNote:"Both directions are correct. In the full version, teams split them between themselves; in the demo you pick one.",
+    liveAirBanner:"🔴 LIVE ON AIR · THE HOSTILE VERSION IS SPREADING",
+    phaseCounterTitle:(n)=>'PHASE '+n+' · COUNTER-NARRATIVE',
+    vacuumNote:"the vacuum is working for the enemy",
+    counterWorks:"Counter-narrative works", partialEffect:"Partial effect", ipsoFavorMove:"A move in the enemy's favor",
+    nextDebrief:"NEXT · DEBRIEF",
+    debriefTitle:"OPERATION DEBRIEF",
+    rankOperation:"RATE THE OPERATION ▸",
+    failedTitle:"OPERATION FAILED",
+    failedRank:"THE NARRATIVE TOOK HOLD",
+    failedText:"Disinformation influence has reached a critical threshold: the hostile version has taken hold and become the default truth for your audience. Displacing a narrative that has already rooted itself costs many times more than keeping it out in the first place. The trainer gives you a luxury reality doesn't: work out which decisions gave up the field, and go through the operation again.",
+    replayOp:"↻ REPLAY OPERATION",
+    restartCampaign:"RESTART CAMPAIGN",
+    rankTitle:(node)=>'OPERATION RATING · '+node,
+    rankSubA:"flawless", rankSubB:"one mistake, hang in there", rankSubC:"there's work to do",
+    statRecognition:"Recognition", statTechAnalysis:"Technique analysis", statCounter:"Counter", statSpeed:"Speed",
+    missedWord:"missed", falseWord:"false", cleanWord:"clean",
+    correctMark:"✓ correct", wrongMark:"✗ wrong",
+    optimalCounter:"optimal", midCounter:"mediocre", harmfulCounter:"harmful",
+    timeUpVacuum:"time's up · vacuum", timeLeftFrac:(s,f)=>s+'s left · '+f+'%',
+    summaryBtn:"SUMMARY ▸", toMapBtn:"TO THE MAP ▸",
+    silenceEventTitle:"⚠ EVENT: LOUD SILENCE",
+    silenceEventText:"Several times you chose to «calm things down» instead of «respond». On the surface things got quieter, but unanswered questions didn't go anywhere. They festered, and now they've exploded into a drop in trust. Loud silence doesn't mean the absence of problems. It means their preservation. Resilience −10.",
+    loudSilenceLabel:"Loud silence",
+    campaignSummary:"CAMPAIGN SUMMARY",
+    campaignSummaryRole:(role)=>'CAMPAIGN SUMMARY · '+role,
+    rankResilient:"INFO-RESILIENT", rankResilientNote:"The influence line is on your side. You read techniques, not headlines.",
+    rankLiterate:"MEDIA-LITERATE", rankLiterateNote:"You held the line overall. Some decisions played into the hostile frame — the debriefs show exactly where.",
+    rankVictim:"VICTIM OF THE PLAYBOOK", rankVictimNote:"The narratives got through your defense. The good news: now you know exactly where. That's already half the defense.",
+    finalResilience:"Final resilience", trustInYou:"Trust in you", minTrust:"Min. trust over the campaign",
+    accurateDecisions:"Accurate decisions", ofWord:"of", techBadges:"Technique badges",
+    vulnerabilityProfile:"VULNERABILITY PROFILE",
+    resilientTo:"Resilient to:", workZone:"Work zone:", cleanRun:"A clean run across every technique. Rare.",
+    profileNote:"In the full version the profile accumulates across sessions and gives the trainer a picture across the whole unit: which techniques break through people most often.",
+    demoTitle:"YOU JUST FINISHED THE CORE DEMO BUILD",
+    demoText:"A 6-operation campaign, OSINT, technique analysis and counters — everything you saw already works. Below is what the demo doesn't have yet.",
+    fullVersionAdds:"THE FULL VERSION ADDS",
+    fullVersionList:["Progression: start as a plain press officer, level up your character, unlock harder roles and new map regions","Free choice of operations on the map — the demo's order is fixed for the sake of a through-line story","Applied enemy-studies: a skill tree of techniques that unlocks new counters","Team mode: two players, one situation, compare decisions","Analytics for the trainer and regional resilience profiles"],
+    addonsInProgress:"ADD-ONS IN DEVELOPMENT",
+    addonsList:["MOBILE UNITS: reading the audience, building a set. Based on the card version","INTERNATIONAL: diplomatic scenarios, skeptical audiences","RED TEAM: build a disinformation op yourself and understand the defense from the inside"],
+    feedbackCta:"LEAVE FEEDBACK — 2 MINUTES",
+    againOtherRole:"AGAIN · A DIFFERENT ROLE",
+    toModes:"TO MODES",
+    brokenPackTitle:"BROKEN PACKAGE",
+    brokenPackH2:"Couldn't read the operation",
+    brokenPackText:"The link is broken or was built in an incompatible version. Open the standard game and try generating the package again.",
+    toStandardGame:"TO THE STANDARD GAME ▸",
+    pvpTitle:"ANALYSIS OF SOMEONE ELSE'S OPERATION",
+    pvpH2:"ANOTHER PLAYER CREATED THIS OPERATION",
+    pvpBreached:"BREACHED", pvpHeld:"HELD",
+    pvpBreachedText:"At least one planted narrative got past you. The author hit your blind spot.",
+    pvpHeldText:"You uncovered every narrative the author planted. The attack didn't get through.",
+    pvpTechLabel:"TECHNIQUES · PLANTED BY THE AUTHOR vs FOUND BY YOU",
+    pvpFoundMark:"✓ found", pvpMissedMark:"✗ missed",
+    pvpTechAnalysis:"Technique analysis", pvpFinalResilience:"Final resilience",
+    createYourOp:"CREATE YOUR OWN OPERATION ▸", toStandardGameNoArrow:"TO THE STANDARD GAME",
+    commanderChannel:"▸ INCOMING · COMMANDER",
+    commanderName:"COMMANDER",
+    pauseHintNote:"⏸ paused: Commander's tip",
+    ok:"OK",
+    skip:"SKIP ▸",
+    soundTitle:"Sound",
+    leaveFeedback:"Leave feedback",
+    feedbackFabLabel:"FEEDBACK",
+    seeMore:"See more", seeLess:"See less",
+    langFabToEn:"Switch to English", langFabToUk:"Switch to Ukrainian",
+    vacuumWord:"VACUUM", vacuumLabel:"Vacuum", vacuumEnemyNote:"the enemy is filling the silence",
+    infoVacuumLabel:"Info vacuum",
+    lowTrustPenalty:"They trust you less now: leaks are trusted more readily",
+    streakLabel:(s,mult)=>'STREAK '+s+mult,
+    trustLabel:(v)=>'TRUST '+Math.round(v),
+    trustDelta:(applied)=>'TRUST '+(applied>0?'+':'')+applied,
+    /* FLOW REFACTOR, Phase 1: short in-mission verdict + post-op AAR */
+    verdictRight:"✅ CORRECT.", verdictWrong:"❌ WRONG.",
+    fullReportNote:"Full breakdown in the post-operation report.",
+    aarTitle:"AFTER ACTION REPORT",
+    aarFeedSection:"FEED BREAKDOWN",
+    aarTechSection:"TECHNIQUE ANALYSIS", aarCounterSection:"COUNTER",
+    aarYourPick:"YOUR PICK", aarRightPick:"THE RIGHT CALL",
+    aarResilDelta:"Resilience this op", aarTrustDelta:"Trust this op",
+    aarMarkHit:"✓ RUSSIAN HOSTILE · SPOTTED", aarMarkMiss:"✗ RUSSIAN HOSTILE · MISSED",
+    aarMarkFalse:"✗ FALSE ALARM", aarMarkClean:"✓ HONEST · CLEAN",
+    aarDetailShow:"DETAILED BREAKDOWN ▾", aarDetailHide:"COLLAPSE BREAKDOWN ▴",
+  }
+};
+function t(key, ...args){
+  const dict = (UI[LANG] || UI.uk);
+  const v = (key in dict) ? dict[key] : UI.uk[key];
+  return typeof v==='function' ? v(...args) : v;
+}
+/* currentScreen: закриття, що вміє перемалювати ЩО ЗАРАЗ на екрані під нову
+   мову. Кожен «верхньорівневий» екран (не вкладена подія типу wildcard/hint)
+   записує сюди себе на вході. toggleLang()/setLang() викликають це замість
+   повного перезавантаження сторінки — стан кампанії (S) не губиться. */
+let currentScreen = null;
+function updateLangFab(){
+  const btn = document.getElementById('langFab');
+  if(!btn) return;
+  btn.textContent = LANG==='uk' ? 'EN' : 'УКР';
+  btn.title = LANG==='uk' ? t('langFabToEn') : t('langFabToUk');
+}
+// Статичні елементи топбару поза render() (бренд, кнопка звуку, підписи шкали
+// впливу, фідбек-кнопка) — вони не перемальовуються через t() у render(),
+// тож синхронізуємо їх тут прямо. Викликається і з setLang() (перемикач),
+// і один раз при завантаженні (щоб стартова мова з localStorage не лишала
+// ці елементи українською, поки користувач не торкнеться перемикача).
+function syncStaticLangUI(){
+  const tbTitle = document.getElementById('tbTitle');
+  if(tbTitle) tbTitle.innerHTML = (LANG==='en'?'IPSO':'ІПСО')+'<span class="x">·</span>'+(LANG==='en'?'MNIA':'МНІЯ');
+  const sfxBtn = document.getElementById('sfxBtn');
+  if(sfxBtn){ sfxBtn.title = t('soundTitle'); sfxBtn.setAttribute('aria-label', t('soundTitle')); }
+  const inflL = document.getElementById('inflLabelL'), inflR = document.getElementById('inflLabelR');
+  if(inflL) inflL.textContent = '◂ '+(LANG==='en'?'ENEMY INFLUENCE':'ВПЛИВ ІПСО');
+  if(inflR) inflR.textContent = (LANG==='en'?'RESILIENCE':'СТІЙКІСТЬ')+' ▸';
+  const fbFab = document.getElementById('feedbackFab');
+  if(fbFab){ fbFab.textContent = t('feedbackFabLabel'); fbFab.title = t('leaveFeedback'); }
+  updateLangFab();
+}
+function setLang(lang){
+  if(lang!=='en' && lang!=='uk') return;
+  if(lang===LANG) return;
+  applyLang(lang);   // content.js: перевизначає SCENARIOS/ROLES/WILD/mapOps/BOSS_CHAR/DIALOGUE/BOSS_DIALOGUE/TUTORIAL
+  try{ localStorage.setItem('ipsomnia_lang', lang); }catch(e){}
+  document.documentElement.lang = lang;
+  // S.role — посилання на конкретний об'єкт у СТАРОМУ масиві ROLES; після
+  // перемикання масив інший, тому підхоплюємо роль за тим самим індексом.
+  if(S.role && S.roleIndex!=null && ROLES[S.roleIndex]) S.role = ROLES[S.roleIndex];
+  syncStaticLangUI();
+  if(document.getElementById('topbar') && document.getElementById('topbar').style.display!=='none') hud();
+  if(typeof currentScreen==='function') currentScreen();
+}
+function toggleLang(){ setLang(LANG==='uk' ? 'en' : 'uk'); }
 const S = { role:null, i:0, infl:50, rep:100, repMin:100, streak:0, correct:0, total:0,
             picks:new Set(), audience:null, cons:0, results:[], badges:[], usedWild:[], timerCut:0, lastTechPos:-1,
             feed:[], osintLeft:2, osintTotal:2, osintDone:new Set(), op1Bad:false };
@@ -160,7 +502,7 @@ function gainAdj(v, isCounter){
   let m = 1;
   if(S.streak>=5) m=2; else if(S.streak>=3) m=1.5;
   v = Math.round(v*m);
-  if(isCounter && S.rep<50){ v = Math.ceil(v/2); setTimeout(()=>toast('Довіра низька: вам менше вірять','minus0'),1700); }
+  if(isCounter && S.rep<50){ v = Math.ceil(v/2); setTimeout(()=>toast(t('lowTrustPenalty'),'minus0'),1700); }
   return v;
 }
 /* =====================================================================
@@ -168,8 +510,12 @@ function gainAdj(v, isCounter){
    Показуються один раз за тригер, і лише в першому проходженні кампанії
    за сесію ("ЩЕ РАЗ" підказок не показує) — тому стан тримаємо поза S,
    резет кампанії (resetState) його не чіпає, так само як introSeen.
-   ===================================================================== */
+   Мапа-хаб (структура «відкрита мапа») дозволяє почати з БУДЬ-ЯКОЇ операції,
+   тому підказки більше не прив'язані до S.i===0 (позиція "перша в масиві") —
+   firstOpId запам'ятовує id операції, яку гравець реально обрав першою. */
 let tutorialDone = false;
+let firstOpId = null;
+function inFirstOp(){ return !!(SCENARIOS[S.i] && SCENARIOS[S.i].id === firstOpId); }
 const hintsShown = new Set();
 let hintQueue = [], hintBusy = false;
 function showHint(id, force){
@@ -191,17 +537,18 @@ function advanceHintQueue(){
   const freezeWild = (id==='wildcard_first' && wtimerInt);   // FIX 2б: той самий патерн заморозки для choice-wildcard
   if(freeze){
     clearInterval(timerInt); timerInt=null;
-    const note = document.querySelector('.timer .note'); if(note) note.textContent = '⏸ пауза: підказка Командира';
+    const note = document.querySelector('.timer .note'); if(note) note.textContent = t('pauseHintNote');
   }
   if(freezeWild){ clearInterval(wtimerInt); wtimerInt=null; }
   const wrap = document.createElement('div');
   wrap.className = 'hint-panel';
   wrap.innerHTML =
-      '<div class="hint-panel-top">'
+      '<div class="hint-channel px">'+t('commanderChannel')+'</div>'
+    + '<div class="hint-panel-top">'
     +   '<div class="hint-portrait"><div class="hint-silhouette"></div><img src="assets/instructor_1.png" alt="" onerror="this.remove()"></div>'
-    +   '<div class="hint-body"><div class="hint-name">КОМАНДИР</div><div class="hint-text">'+text+'</div></div>'
+    +   '<div class="hint-body"><div class="hint-name">'+t('commanderName')+'</div><div class="hint-text">'+text+'</div></div>'
     + '</div>'
-    + '<button class="hint-ok">OK</button>';
+    + '<button class="hint-ok">'+t('ok')+'</button>';
   wrap.addEventListener('click', ()=>{
     if(!wrap.parentNode) return;
     wrap.classList.remove('show');
@@ -210,7 +557,7 @@ function advanceHintQueue(){
       if(focusEl) focusEl.classList.remove('hint-focus');
       // відновити таймер лише якщо гравець ще не відповів (не встиг натиснути опцію)
       if(freeze && !S._counterDone && S._timeLeft>0 && document.getElementById('timerT')){
-        const note = document.querySelector('.timer .note'); if(note) note.textContent = 'вакуум працює на ворога';
+        const note = document.querySelector('.timer .note'); if(note) note.textContent = t('vacuumNote');
         startTimer(S._timeLeft, S._op.timeTotal);
       }
       if(freezeWild && !S._wildDone && S._wildLeft>0 && document.getElementById('wT')){
@@ -258,7 +605,7 @@ function setInfl(delta,label,sfx){
     if(sfx!==false) SFX.play(sfx || (delta>0?'gain':'loss'));
     // відкладено на макротаск: launchAttack() викликає setInfl, а одразу після — phaseFeed(),
     // чий render() чистить чергу підказок. Без затримки ця підказка вбивала б сама себе.
-    if(delta<0 && S.i===0) setTimeout(()=>showHint('infl_drop'),0);
+    if(delta<0 && inFirstOp()) setTimeout(()=>showHint('infl_drop'),0);
   }
   hud();
 }
@@ -269,8 +616,8 @@ function setRep(delta){
   const applied = S.rep - before;
   if(!applied) return;   // вже на межі 0/100, реальної зміни нема — тост зайвий
   if(S.rep < S.repMin) S.repMin = S.rep;
-  toast('ДОВІРА '+(applied>0?'+':'')+applied, applied>0);
-  if(S.i===0) showHint('rep_change');
+  toast(t('trustDelta',applied), applied>0);
+  if(inFirstOp()) showHint('rep_change');
   hud();
 }
 /* Задача 4, мікроанімація 1/5: швидкий тік замість миттєвого стрибка числа.
@@ -295,10 +642,10 @@ function hud(){
   const av=document.getElementById('hudAvatar');
   if(av) av.innerHTML = S.role ? avatarHTML(S.role,'av-sm') : '';
   let mult = S.streak>=5?' ×2':(S.streak>=3?' ×1.5':'');
-  st.textContent = 'СЕРІЯ '+S.streak+mult;
+  st.textContent = t('streakLabel', S.streak, mult);
   st.className = 'streak'+(S.streak>=3?'':' cold');
   const prevRep = parseInt((rp.textContent.match(/\d+/)||[0])[0]);
-  tickValue(rp, prevRep, S.rep, v=>'ДОВІРА '+Math.round(v));
+  tickValue(rp, prevRep, S.rep, v=>t('trustLabel', v));
   rp.className = 'rep'+(S.rep<50?' low':'');
   // Задача 4, мікроанімація 2/5: бейдж щойно розкритої техніки — "печатка"
   // (scale 1.15→1 + один glow-імпульс), лише на тому бейджі, що саме з'явився.
@@ -335,19 +682,66 @@ function processToastQueue(){
     setTimeout(processToastQueue, 400);
   }, 1700);
 }
-function prog(){ document.getElementById('prog').textContent = (S.i+1)+'/'+SCENARIOS.length; }
-/* ===== блок 08: glitch-перехід (замінює блок 03/wipe за прямою вказівкою
-   брифу — сніпета в лабі нема, це авторський код за функціональним описом,
-   не порт). Той самий архітектурний компроміс, що раніше був у wipeTo():
-   render() має ~20 місць виклику, де код одразу після нього синхронно
-   чіпляється до щойно вставленого DOM (startTimer, initGlitch, showHint-
-   фокус, ревіл стрічки) — затримка справжньої підміни контенту зламала б
-   усі ці місця. Тому глітч грає на ВЖЕ підміненому екрані (звук/логіка не
-   чекають), а callback() викликається одразу — за фактом просто послідовність
-   "запустити глітч, потім зробити те, що йде далі" (у нас це bootScreen). */
+/* ---------- Прогрес кампанії (мапа-хаб, скасовує лінійну послідовність) ----------
+   Персистить у localStorage як плаский JSON-масив id пройдених операцій, без
+   дублів. Мапа читає цей масив при кожному рендері; коли всі не-босівські id
+   пройдені — бос переходить у boss-unlocked. */
+function getCompleted(){
+  try{ const raw = JSON.parse(localStorage.getItem('ipsomnia_completed')); return Array.isArray(raw) ? raw : []; }
+  catch(e){ return []; }
+}
+function markCompleted(id){
+  const done = getCompleted();
+  if(done.includes(id)) return;
+  done.push(id);
+  try{ localStorage.setItem('ipsomnia_completed', JSON.stringify(done)); }catch(e){}
+}
+function nonBossOps(){ return mapOps.filter(o=>o.id!==BOSS_ID); }
+function bossUnlocked(){ const done = getCompleted(); return nonBossOps().every(o=>done.includes(o.id)); }
+/* Правка плейтесту (п.5): кампанія відкривається хвилями. Спершу доступні перші
+   WAVE_SIZE (3) операції за складністю (порядок SCENARIOS: blackout→migrants —
+   від найлегшої до найважчої), наступна хвиля відкривається, коли попередня
+   пройдена повністю. Порядок береться зі SCENARIOS (складність), не з mapOps
+   (розкладка пінів). Групування суто engine-рівня — контент не чіпаємо. */
+const WAVE_SIZE = 3;
+function nonBossOrder(){ return SCENARIOS.filter(s=>!s.boss).map(s=>s.id); }
+function opWave(id){ const i = nonBossOrder().indexOf(id); return i<0 ? 0 : Math.floor(i/WAVE_SIZE); }
+function waveUnlocked(w){
+  if(w<=0) return true;
+  const done = getCompleted(), order = nonBossOrder();
+  // хвиля w відкрита, коли всі операції попередніх хвиль пройдені
+  return order.every((id,i)=> Math.floor(i/WAVE_SIZE) >= w || done.includes(id));
+}
+function opUnlocked(id){ return waveUnlocked(opWave(id)); }
+function prog(){ const done = getCompleted().filter(id=>mapOps.some(o=>o.id===id)); document.getElementById('prog').textContent = done.length+'/'+mapOps.length; }
+/* ===== блок 08: glitch-перехід (портовано з design/crt-lab.html, блок 08 —
+   ефект — слайс-смуги + RGB-розсув на persistent .glitch-fx з index.html,
+   керовано --glitch-dur; CSS докладно в index.html поруч із .glitch-fx).
+   Сигнатура, виклик і синхронна семантика callback НЕ змінені відносно
+   попередньої версії — той самий архітектурний компроміс, що раніше був
+   у wipeTo(): render() має ~20 місць виклику, де код одразу після нього
+   синхронно чіпляється до щойно вставленого DOM (startTimer, initGlitch,
+   showHint-фокус, ревіл стрічки) — затримка справжньої підміни контенту
+   зламала б усі ці місця. Тому глітч грає ПОВЕРХ вже підміненого екрана
+   (звук/логіка не чекають), а callback() викликається одразу — за фактом
+   просто послідовність "запустити глітч, потім зробити те, що йде далі"
+   (у нас це bootScreen). Лаба відкладає swap() до ~45% тривалості глітчу —
+   у грі такої затримки немає й раніше не було, це свідомо не портовано.
+   ФІКС залишку глітчу на невузлових переходах: при порті з лаби загубився
+   `fx.addEventListener('animationend', ()=>fx.classList.remove('run'))`.
+   Без нього .run лишався на persistent-оверлеї НАЗАВЖДИ після першого ж
+   вузлового глітчу — анімація не "видалена", а вічно "finished/filling",
+   і будь-який наступний forced reflow (void screen.offsetWidth в
+   bootScreen(), а він виконується на КОЖНОМУ render(), не лише вузловому)
+   міг змусити браузер пересинхронізувати/перемалювати цей завислий шар —
+   звідси однокадровий зсув/блим на невузлових переходах. Причина: .run
+   ніколи не знімався з .glitch-fx після завершення анімації. */
 function glitchTransition(callback){
-  const screen = document.querySelector('.screen');
-  if(screen){ screen.classList.remove('glitching'); void screen.offsetWidth; screen.classList.add('glitching'); }
+  const fx = document.querySelector('.glitch-fx');
+  if(fx){
+    fx.classList.remove('run'); void fx.offsetWidth; fx.classList.add('run');
+    fx.addEventListener('animationend', ()=>fx.classList.remove('run'), {once:true});
+  }
   callback();
 }
 /* ===== design/crt-lab.html блок 02: «термінал прокидається» (портовано як є) =====
@@ -394,7 +788,13 @@ function staggerNarrCards(screen){
     el.classList.add('narr-stagger');
   });
 }
-function render(html){ stopAllTimers(); stopBossGlitch(); document.querySelectorAll('.osint-modal').forEach(e=>e.remove()); document.querySelectorAll('.hint-panel').forEach(e=>e.remove()); document.querySelectorAll('.hint-focus').forEach(e=>e.classList.remove('hint-focus')); hintQueue=[]; hintBusy=false; toastQueue=[]; app.innerHTML = '<div class="screen">'+html+'</div>'; app.scrollTop = 0; /* фікс 3: скрол тепер у #app, не в body/window */ glitchTransition(()=>{ const scr=app.querySelector('.screen'); bootScreen(scr); staggerNarrCards(scr); }); }
+/* Глітч-перехід (блок 08) звужено на 4 вузлові точки кампанії (правка "точкова
+   правка застосування глітчу"): тайтл→гра, катсцена→мапа, розбір операції→мапа,
+   вхід у фінал. Усе інше (бріфінг, фаза→фаза, фаза→розбір) — простий рендер
+   із тим самим boot-флікером (блок 02, не глітч), як було до інтеграції глітчу.
+   render(html, glitch) — другий параметр true лише на цих 4 викликах, дефолт
+   false. Прапорець прокидається у виклик, не змінює саму glitchTransition(). */
+function render(html, glitch){ stopAllTimers(); stopBossGlitch(); document.querySelectorAll('.osint-modal').forEach(e=>e.remove()); document.querySelectorAll('.hint-panel').forEach(e=>e.remove()); document.querySelectorAll('.hint-focus').forEach(e=>e.classList.remove('hint-focus')); hintQueue=[]; hintBusy=false; toastQueue=[]; app.innerHTML = '<div class="screen">'+html+'</div>'; app.scrollTop = 0; /* фікс 3: скрол тепер у #app, не в body/window */ const boot=()=>{ const scr=app.querySelector('.screen'); bootScreen(scr); staggerNarrCards(scr); }; if(glitch) glitchTransition(boot); else boot(); }
 /* Задача 1: кнопки "ДАЛІ" дописуються в .screen ПІЗНІШЕ, окремо від render().
    Якщо .booting ще не встиг злетіти з .screen (таймер у bootScreen), нова
    кнопка теж матиме opacity:0 від .screen.booting>* — тому знімаємо клас
@@ -430,16 +830,16 @@ function startTimer(seconds, total){
         vacuumStarted = true;
         setRep(-3);   // жива довіра: промовчав у вакуумі
         if(S._op) S._op.timedOut = true;   // PATCH B1: таймаут = помилка
-        if(el) el.textContent = 'ВАКУУМ';
+        if(el) el.textContent = t('vacuumWord');
         if(bar) bar.style.width = '0%';
         if(box) box.classList.add('hot');
-        const note = document.querySelector('.timer .note'); if(note) note.textContent = 'ворог заповнює тишу';
+        const note = document.querySelector('.timer .note'); if(note) note.textContent = t('vacuumEnemyNote');
       }
       const vacElapsed = elapsed - seconds;
       const dueTicks = Math.floor(vacElapsed/5);
       // PATCH: агрегація catch-up тостів — один виклик на всі пропущені тіки замість N
       const n = dueTicks - vacuumTicksApplied;
-      if(n>0){ vacuumTicksApplied = dueTicks; setInfl(pen(-5)*n,'Вакуум'); }   // PATCH B2: буст вакууму
+      if(n>0){ vacuumTicksApplied = dueTicks; setInfl(pen(-5)*n,t('vacuumLabel')); }   // PATCH B2: буст вакууму
       lastLeft = 0;
       return;
     }
@@ -459,7 +859,7 @@ function startTimer(seconds, total){
       }
       if(s>0 && s%9===0) count++;
     }
-    if(count>0) setInfl(pen(-2)*count,'Інфовакуум',false);
+    if(count>0) setInfl(pen(-2)*count,t('infoVacuumLabel'),false);
     lastLeft = left;
   }
   timerInt = setInterval(tick, 1000);
@@ -486,41 +886,42 @@ function stopBossGlitch(){
 
 /* ---------- Екрани ---------- */
 function modeSelect(){
+  currentScreen = modeSelect;
   document.getElementById('topbar').style.display='none';
   render(`
     <div class="title-screen" style="padding-top:7vh">
-      <div class="eyebrow">ПЛАТФОРМА ТРЕНУВАННЯ ІНФОСТІЙКОСТІ</div>
-      <h1><span style="color:var(--gold)">ІПСО</span>МНІЯ</h1>
-      <p class="lead">Одне ядро зі спільною моделлю аудиторії та наративів. Режими працюють як контент-паки поверх нього.</p>
+      <div class="eyebrow">${t('trainingPlatform')}</div>
+      <h1><span style="color:var(--gold)">${LANG==='en'?'IPSO':'ІПСО'}</span>${LANG==='en'?'MNIA':'МНІЯ'}</h1>
+      <p class="lead">${t('modeLead')}</p>
       <div class="modes">
         <button class="mode hero" onclick="startIntro()">
-          <span class="mode-badge live px">ГРАТИ</span>
-          <div class="mode-name">ІНФОСТІЙКІСТЬ</div>
-          <div class="mode-desc">Базовий режим для будь-кого. Розпізнавання ворожих наративів, аналіз технік, контрнаративи. Кампанія з 6 операцій.</div>
+          <span class="mode-badge live px">${t('playBadge')}</span>
+          <div class="mode-name">${t('coreModeName')}</div>
+          <div class="mode-desc">${t('coreModeDesc')}</div>
         </button>
         <div class="mode locked" aria-disabled="true">
-          <span class="mode-badge lock px">СКОРО</span>
-          <div class="mode-name">МОБІЛЬНІ ГРУПИ</div>
-          <div class="mode-desc">Для виїзних мистецьких груп: читання аудиторії за чотирма шкалами, побудова програми, адаптація на ходу. На базі карткової версії.</div>
+          <span class="mode-badge lock px">${t('soonBadge')}</span>
+          <div class="mode-name">${t('mobileModeName')}</div>
+          <div class="mode-desc">${t('mobileModeDesc')}</div>
         </div>
         <div class="mode locked" aria-disabled="true">
-          <span class="mode-badge lock px">СКОРО</span>
-          <div class="mode-name">МІЖНАРОДНИЙ</div>
-          <div class="mode-desc">Дипломатичні та медійні сценарії для скептичних аудиторій. Прев'ю вже всередині базового режиму, операція 4.</div>
+          <span class="mode-badge lock px">${t('soonBadge')}</span>
+          <div class="mode-name">${t('intlModeName')}</div>
+          <div class="mode-desc">${t('intlModeDesc')}</div>
         </div>
         ${ENABLE_CREATOR ? `
         <button class="mode" onclick="location.href='creator.html'">
-          <span class="mode-badge live px">СТВОРИТИ</span>
-          <div class="mode-name">ЧЕРВОНА КОМАНДА</div>
-          <div class="mode-desc">Зворотний режим: сконструюй ІПСО сам. Ціль, емоція, техніка, канал. Найшвидший шлях зрозуміти захист, це раз побувати атакою.</div>
+          <span class="mode-badge live px">${t('redTeamBadge')}</span>
+          <div class="mode-name">${t('redTeamModeName')}</div>
+          <div class="mode-desc">${t('redTeamModeDesc')}</div>
         </button>` : `
         <div class="mode locked" aria-disabled="true">
-          <span class="mode-badge lock px">СКОРО</span>
-          <div class="mode-name">ЧЕРВОНА КОМАНДА</div>
-          <div class="mode-desc">Зворотний режим: сконструюй ІПСО сам. Ціль, емоція, техніка, канал. Найшвидший шлях зрозуміти захист, це раз побувати атакою.</div>
+          <span class="mode-badge lock px">${t('soonBadge')}</span>
+          <div class="mode-name">${t('redTeamModeName')}</div>
+          <div class="mode-desc">${t('redTeamModeDesc')}</div>
         </div>`}
       </div>
-      <div class="footer-note">ІПСОМНІЯ v0.3 · DEMO BUILD · КУЛЬТУРНІ СИЛИ</div>
+      <div class="footer-note">${t('footerNote')}</div>
     </div>`);
 }
 
@@ -590,8 +991,8 @@ function clearIntroTimers(){
    програти і що робити після (roleSelect чи запуск операції боса). */
 let activeDialogue = DIALOGUE;
 let dialogueDoneCb = roleSelect;
-let activePortrait = INSTRUCTOR.frames, activeSpeaker = 'КОМАНДИР';
-function renderDialogueScreen(){
+let activePortrait = INSTRUCTOR.frames, activeSpeaker = t('commanderName');
+function renderDialogueScreen(glitch){
   preloadFrames(activePortrait);
   instrImgOk = true;
   introState = null;
@@ -605,19 +1006,21 @@ function renderDialogueScreen(){
         <div class="dlg-text" id="dlgText"></div>
         <div class="dlg-next" id="dlgNext">▼</div>
       </div>
-    </div>`);
+    </div>`, !!glitch);
   playLine(0);
 }
 function startIntro(){
-  if(introSeen){ roleSelect(); return; }
+  if(introSeen){ roleSelect(true); return; }   // вузлова точка 1: тайтл → гра (катсцену вже бачили цю сесію)
   SFX.startIntroMusic();   // окремий трек для катсцени, стартує разом із нею, не чекає вибору ролі
   activeDialogue = DIALOGUE;
   dialogueDoneCb = ()=>{ introSeen=true; roleSelect(); };
-  activePortrait = INSTRUCTOR.frames; activeSpeaker = 'КОМАНДИР';
-  renderDialogueScreen();
+  activePortrait = INSTRUCTOR.frames; activeSpeaker = t('commanderName');
+  renderDialogueScreen(true);   // вузлова точка 1: тайтл → гра
 }
-/* Тригер: клік «ФІНАЛЬНА ОПЕРАЦІЯ» на мапі, перед запуском операції боса. */
+/* Тригер: клік «ФІНАЛЬНА ОПЕРАЦІЯ» на мапі, перед запуском операції боса.
+   Не вузлова точка (мапа→катсцена боса нема в переліку) — глітч не передаємо. */
 function startBossIntro(){
+  S.i = SCENARIOS.findIndex(sc=>sc.boss);
   activeDialogue = BOSS_DIALOGUE;
   dialogueDoneCb = startScenario;
   activePortrait = BOSS_CHAR.frames; activeSpeaker = BOSS_CHAR.name;
@@ -670,12 +1073,13 @@ function avatarHTML(r, cls){
        + '</span>';
 }
 
-function roleSelect(){
+function roleSelect(glitch){
+  currentScreen = ()=>roleSelect();
   render(`
     <div style="padding-top:4vh">
-      <div class="eyebrow">ОБЕРИ РОЛЬ</div>
-      <h2>Хто ти в цій кампанії?</h2>
-      <p class="lead">Роль визначає темп і ціну помилки. Ворожі наративи не схожі на пропаганду: вони схожі на інсайд, на обережного експерта, на голос миру. Твоя робота: знайти їх у стрічці, назвати техніку і встигнути з контрходом, поки вакуум не заповнив ворог.</p>
+      <div class="eyebrow">${t('chooseRole')}</div>
+      <h2>${t('whoAreYou')}</h2>
+      <p class="lead">${t('roleLead')}</p>
       <div class="modes">
         ${ROLES.map((r,i)=>`
           <button class="mode role-card" onclick="pickRole(${i})">
@@ -687,43 +1091,64 @@ function roleSelect(){
             </div>
           </button>`).join('')}
       </div>
-      <button class="btn ghost" onclick="modeSelect()">НАЗАД</button>
-    </div>`);
+      <button class="btn ghost" onclick="modeSelect()">${t('back')}</button>
+    </div>`, !!glitch);
 }
 function pickRole(i){
-  S.role = ROLES[i];
+  S.role = ROLES[i]; S.roleIndex = i;
   document.getElementById('topbar').style.display='block';
   hud();
   SFX.crossfadeIntroToAmbient();   // перехід на мапу кампанії: кросфейд intro.ogg → ambient.ogg
-  if(pendingOp){ S.i = pendingOp-1; pendingOp = 0; }
+  if(pendingOp){ const idx = pendingOp-1; pendingOp = 0; if(SCENARIOS[idx]){ selectOp(idx); return; } }
   campaignMap();
 }
 
+/* Єдина точка входу на мапу — і після вибору ролі (вузлова точка 2), і після
+   розбору операції через nextScenario() (вузлова точка 3). Обидва виклики
+   мають глітчити, тому прапорець тут не параметр виклику, а завжди true.
+   Мапа-хаб (структура «відкрита мапа», скасовує лінійну послідовність):
+   усі не-босівські операції видимі й клікабельні одразу, незалежно від S.i.
+   Бос — єдиний замкнений пін, читає прогрес із localStorage (getCompleted). */
 function campaignMap(cliff){
+  currentScreen = ()=>campaignMap(cliff);
   prog();
-  const isBoss = S.i===SCENARIOS.length-1;
-  const btnLabel = isBoss ? 'ФІНАЛЬНА ОПЕРАЦІЯ' : 'ОПЕРАЦІЯ '+(S.i+1);
+  const done = getCompleted();
+  const unlocked = bossUnlocked();
   render(`
-    <div class="eyebrow">МАПА КАМПАНІЇ</div>
+    <div class="eyebrow">${t('campaignMap')}</div>
     <div class="map-geo">
       <img class="map-bg" src="assets/map_ukraine.png" alt="" onerror="this.remove()">
-      ${SCENARIOS.map((sc,idx)=>{
-        const st = idx<S.i?'done':(idx===S.i?'cur':'locked');
-        const click = idx===S.i ? ` onclick="${sc.boss?'startBossIntro()':'startScenario()'}"` : '';
-        return `<div class="gnode ${st}${sc.boss?' gboss':''}" style="left:${sc.map.x}%;top:${sc.map.y}%"${click} ${idx===S.i?'role="button" tabindex="0"':''}>
-          <div class="dot${sc.boss?' glitch-target':''}">${idx<S.i?'✓':(sc.boss?'☠':(idx===S.i?idx+1:'▒'))}</div>
-          <div class="nlabel">${idx<=S.i?sc.node:'???'}</div>
+      ${mapOps.map(o=>{
+        const idx = SCENARIOS.findIndex(sc=>sc.id===o.id);
+        const isBoss = o.id===BOSS_ID;
+        const isDone = done.includes(o.id);
+        // п.5: не-босівські операції гейтяться хвилями
+        const opOpen = isBoss ? unlocked : opUnlocked(o.id);
+        const st = isBoss ? (!unlocked ? 'locked' : (isDone?'done':'cur')) : (!opOpen ? 'locked' : (isDone?'done available':'available'));
+        const clickable = opOpen;
+        const click = clickable ? ` onclick="selectOp(${idx})"` : '';
+        const dot = isDone ? '✓' : (isBoss ? (unlocked?'☠':'🔒') : (opOpen?'▸':'🔒'));
+        const lockCounter = (isBoss && !unlocked) ? '<div class="nlock">'+nonBossOps().filter(x=>done.includes(x.id)).length+'/'+nonBossOps().length+'</div>' : '';
+        return `<div class="gnode ${st}${isBoss?' gboss':''}" style="left:${o.x}%;top:${o.y}%"${click} ${clickable?'role="button" tabindex="0"':''}>
+          <div class="dot${isBoss&&unlocked&&!isDone?' glitch-target':''}">${dot}</div>
+          <div class="nlabel">${o.title}</div>
+          ${lockCounter}
         </div>`;
       }).join('')}
     </div>
-    ${cliff?`<div class="cliff"><b>ТИМ ЧАСОМ</b>${cliff}</div>`:''}
-    <button class="btn" onclick="${isBoss?'startBossIntro()':'startScenario()'}">${btnLabel} ▸</button>`);
-  initGlitch('.glitch-target');
+    ${cliff?`<div class="cliff"><b>${t('meanwhile')}</b>${cliff}</div>`:''}`, true);
+  if(unlocked) initGlitch('.glitch-target');
 }
+function selectOp(idx){ S.i = idx; const sc = SCENARIOS[idx]; if(sc.boss) startBossIntro(); else startScenario(); }
 
-function startScenario(){
+/* glitch — лише для pack-режиму (bootPack передає true: вузлова точка "вхід
+   у гру" без тайтла/катсцени). У звичайному потоці (кнопка на мапі, бос,
+   replayOp) виклик без аргументу — бріфінг лишається простим рендером. */
+function startScenario(glitch){
+  currentScreen = ()=>startScenario();
   prog();
   const sc = SCENARIOS[S.i];
+  if(firstOpId===null) firstOpId = sc.id;   // мапа-хаб: тутор прив'язаний до реально першої зіграної операції, не до S.i===0
   S.picks = new Set(); S.audience = null; S.timerCut = 0;
   // робоча стрічка операції. Мутація (задача 6): якщо операцію 1 закрито погано,
   // у фінал додається наратив-відлуння блекауту як звичайний тонкий наратив.
@@ -744,11 +1169,11 @@ function startScenario(){
   document.body.classList.toggle('boss-mode', !!sc.boss);
   if(sc.boss) SFX.crossfadeToBoss();
   render(`
-    <div class="eyebrow">ОПЕРАЦІЯ ${S.i+1}${sc.international?' · ПРЕВ\u0027Ю МІЖНАРОДНОГО АДДОНУ':''}${sc.boss?' · ФІНАЛ':''}</div>
+    <div class="eyebrow">${t('operationWord')} ${S.i+1}${sc.international?t('intlPreviewSuffix'):''}${sc.boss?t('finalSuffix'):''}</div>
     <h2 class="${sc.boss?'glitch-target':''}">${sc.title}</h2>
     ${sc.art?'<img class="op-art" src="'+sc.art+'" alt="" onerror="this.remove()">':''}
     <div class="card"><p style="line-height:1.6;font-size:15px">${sc.brief}</p></div>
-    <button class="btn" onclick="launchAttack()">ВІДКРИТИ СТРІЧКУ</button>`);
+    <button class="btn" onclick="launchAttack()">${t('openFeed')}</button>`, !!glitch);
   if(sc.boss) initGlitch('.glitch-target');
   if(sc.boss) showHint('boss_brief', true);
 }
@@ -758,8 +1183,8 @@ function launchAttack(){
   // жива довіра (задача 10): другий поріг, <30 -> вкид на старті операції б'є сильніше
   const lowTrust = S.rep < 30;
   const atk = lowTrust ? Math.round(sc.attack*1.25) : sc.attack;
-  setInfl(pen(atk),'Атаку запущено','alert');
-  if(lowTrust) setTimeout(()=>toast('Вам не вірять. Вкидам вірять охочіше','minus0'),1700);
+  setInfl(pen(atk),t('attackLaunched'),'alert');
+  if(lowTrust) setTimeout(()=>toast(t('lowTrustToast'),'minus0'),1700);
   phaseFeed();
 }
 
@@ -774,14 +1199,14 @@ function phaseFeed(){
   S._feedGen = (S._feedGen||0) + 1;       // захист від застарілого ланцюжка reveal, якщо екран змінився
   const gen = S._feedGen;
   render(`
-    <div class="eyebrow phase-title">ФАЗА 1 · РОЗПІЗНАЙ</div>
-    ${sc.boss?'<div class="attack-banner glitch-target">⚠ ПІДВИЩЕНА АКТИВНІСТЬ ІПСО</div>':''}
-    <div class="task">🎯 <div>Познач <b>усі ворожі наративи</b> й підтверди. Скільки їх, не підказуємо. Хибна тривога теж коштує: бачити ІПСО там, де його нема, це програш іншого типу.</div></div>
-    <div class="osint-bar">🛰 <b>OSINT</b> · ПЕРЕВІРКА ДЖЕРЕЛА · лишилось <span id="osintLeft">${S.osintLeft}</span> / ${S.osintTotal}</div>
+    <div class="eyebrow phase-title">${t('phase1Title')}</div>
+    ${sc.boss?'<div class="attack-banner glitch-target">'+t('highActivityBanner')+'</div>':''}
+    <div class="task">🎯 <div>${t('feedTask')}</div></div>
+    <div class="osint-bar">${t('osintBar', S.osintLeft, S.osintTotal)}</div>
     <div class="feed" id="feed"></div>
-    <button class="btn" id="confirmBtn" disabled onclick="resolveFeed()">ПІДТВЕРДИТИ ВИБІР</button>`);
+    <button class="btn" id="confirmBtn" disabled onclick="resolveFeed()">${t('confirmSelection')}</button>`);
   if(sc.boss) initGlitch('.glitch-target');
-  if(S.i===0) showHint('feed_enter');
+  if(inFirstOp()) showHint('feed_enter');
   revealFeed(gen, 0);
 }
 function msgHTML(idx, m, stamp){
@@ -790,9 +1215,9 @@ function msgHTML(idx, m, stamp){
   // Задача 4, мікроанімація 5: лічильник переглядів рендериться з "0" —
   // revealFeed() відразу після вставки тікає його вгору до справжнього m.v.
   return '<div class="msg appear" tabindex="0" role="button" data-i="'+idx+'" data-views="'+parseViews(m.v)+'" data-hostile="'+(m.h?1:0)+'" onclick="pickMsg('+idx+')" onkeydown="if(event.key===\'Enter\')pickMsg('+idx+')">'
-    + '<div class="msg-head"><span class="msg-author">'+m.a+'</span><span class="msg-tools"><span class="msg-meta">'+stamp+'</span><button class="osint-btn" data-i="'+idx+'" title="OSINT: перевірити джерело" onclick="event.stopPropagation();osintOpen('+idx+')" onkeydown="event.stopPropagation()">🔍</button></span></div>'
-    + (m.flagged ? '<div class="msg-flag">⚠ МОДЕРАЦІЯ ВЖЕ ПОЗНАЧИЛА: ФЕЙК</div>' : '')
-    + '<div class="msg-text">'+m.t+'</div>'
+    + '<div class="msg-head"><span class="msg-author">'+m.a+'</span><span class="msg-tools"><span class="msg-meta">'+stamp+'</span><button class="osint-btn" data-i="'+idx+'" title="'+t('osintCheckTitle')+'" onclick="event.stopPropagation();osintOpen('+idx+')" onkeydown="event.stopPropagation()">🔍</button></span></div>'
+    + (m.flagged ? '<div class="msg-flag">'+t('moderationFlagged')+'</div>' : '')
+    + msgTextHTML(m.t)
     + '<div class="msg-views">👁 <span class="views-n">0</span></div>'
     + '</div>';
 }
@@ -848,7 +1273,7 @@ function updateConfirmBtn(){
 }
 function pickMsg(idx){
   if(document.querySelector('#feed.locked-feed')) return;   // FIX 5: pointer-events:none не блокує keydown
-  if(S.i===0) showHint('first_pick');
+  if(inFirstOp()) showHint('first_pick');
   const el = document.querySelector('.msg[data-i="'+idx+'"]');
   // Задача 2: тап дає лише нейтральний SELECTED (циан), не вердикт.
   // Червоне+глітч (is-threat, блок 05) чіпляє тільки resolveFeed() —
@@ -863,7 +1288,7 @@ function osintOpen(idx){
   const m = S.feed[idx];
   if(!m || !m.osint) return;
   if(!S.osintDone.has(idx)){                        // повторний перегляд перевіреного безкоштовний
-    if(S.osintLeft<=0){ toast('OSINT вичерпано','minus'); return; }
+    if(S.osintLeft<=0){ toast(t('osintExhausted'),'minus'); return; }
     S.osintLeft--; S.osintDone.add(idx);
     const el=document.getElementById('osintLeft'); if(el) el.textContent=S.osintLeft;
     const b=document.querySelector('.osint-btn[data-i="'+idx+'"]'); if(b) b.classList.add('used');
@@ -879,17 +1304,24 @@ function showOsint(m){
   const row=(icon,label,valueHtml)=>
     '<div class="osint-row"><span class="osint-ico">'+icon+'</span>'
     + '<div class="osint-rowbody"><b>'+label+'</b><span>'+valueHtml+'</span></div></div>';
+  // «Вишневе»/дрібніші джерела мають розріджені досьє (частина полів навмисно
+  // порожня, брифінг задачі каже "не рендерити") — тож кожен рядок пропускаємо,
+  // якщо поля нема. Існуючі операції завжди заповнюють усі поля, тому для них
+  // поведінка не змінюється.
+  const rows = [
+    o.created    ? row('📅',t('osintCreated'), o.created) : '',
+    o.postsMonth ? row('📊',t('osintActivity'), o.postsMonth) : '',
+    o.avatar     ? row('🖼',t('osintAvatar'), o.avatar) : '',
+    o.nameHistory? row('🏷',t('osintNames'), o.nameHistory) : '',
+    (o.oldPosts && o.oldPosts.length) ? row('📄',t('osintOldPosts'), o.oldPosts.map(p=>'<span class="osint-post">'+p+'</span>').join('')) : '',
+    o.repostedBy ? row('🔁',t('osintReposted'), o.repostedBy) : ''
+  ].join('');
   wrap.innerHTML =
     '<div class="osint-card">'
-    + '<div class="osint-h"><span>🛰 OSINT-ДОСЬЄ КАНАЛУ</span><button class="osint-x" onclick="this.closest(\'.osint-modal\').remove()">✕</button></div>'
+    + '<div class="osint-h"><span>'+t('osintDossier')+'</span><button class="osint-x" onclick="this.closest(\'.osint-modal\').remove()">✕</button></div>'
     + '<div class="osint-name">'+m.a+'</div>'
-    + row('📅','СТВОРЕНО', o.created)
-    + row('📊','АКТИВНІСТЬ', o.postsMonth)
-    + row('🖼','АВАТАРКА', o.avatar)
-    + row('🏷','НАЗВИ', o.nameHistory)
-    + row('📄','СТАРІ ПОСТИ', o.oldPosts.map(p=>'<span class="osint-post">'+p+'</span>').join(''))
-    + row('🔁','РЕПОСТЯТЬ', o.repostedBy)
-    + '<button class="btn" onclick="this.closest(\'.osint-modal\').remove()">ЗАКРИТИ</button>'
+    + rows
+    + '<button class="btn" onclick="this.closest(\'.osint-modal\').remove()">'+t('close')+'</button>'
     + '</div>';
   wrap.addEventListener('click', e=>{ if(e.target===wrap) wrap.remove(); });
   document.body.appendChild(wrap);
@@ -924,24 +1356,31 @@ function resolveFeed(){
         hostileFound++;
         gain += subtle?8:5;
         el.classList.add('hit');
-        el.insertAdjacentHTML('afterbegin','<span class="tag '+(subtle?'hs':'h')+'">'+(subtle?'✓ ТОНКИЙ НАРАТИВ ×2':'✓ НАРАТИВ')+'</span>');
+        el.insertAdjacentHTML('afterbegin','<span class="tag '+(subtle?'hs':'h')+'">'+(subtle?t('tagSubtleFound'):t('tagFound'))+'</span>');
       } else {
         loss += -6;
         if(!subtle) missedExplicit++;   // тонкий пропуск довіру не чіпає, явний коштує
         else missedSubtle++;
         el.classList.add('missed','shake');
         punchThreat(el);
-        el.insertAdjacentHTML('afterbegin','<span class="tag '+(subtle?'hs':'h')+'">ПРОПУЩЕНО</span>');
+        el.insertAdjacentHTML('afterbegin','<span class="tag '+(subtle?'hs':'h')+'">'+t('tagMissed')+'</span>');
       }
     } else if(picked.includes(idx)){
       falseAlarms++;
       loss += -6;
       el.classList.add('safe','shake');
       punchThreat(el);
-      el.insertAdjacentHTML('afterbegin','<span class="tag n">ХИБНА ТРИВОГА</span>');
-      el.insertAdjacentHTML('beforeend','<div class="expl">'+m.w+'</div>');
+      el.insertAdjacentHTML('afterbegin','<span class="tag n">'+t('tagFalseAlarm')+'</span>');
+      // Флоу-рефакторинг Ф1: у місії лише вердикт + перше речення; повний `w` — в AAR
+      el.insertAdjacentHTML('beforeend', verdictExpl(false, m.w));
     }
   });
+  // Флоу-рефакторинг Ф1: самодостатній лог стрічки для AAR (runtime, не в localStorage).
+  // Знімаємо і текст, щоб звіт не залежав від подальших мутацій S.feed.
+  S._op.review = S.feed.map((m,idx)=>({
+    a:m.a, hostile:!!m.h, tier:m.tier||null, subtype:m.subtype||null, w:m.w||null,
+    marker: m.h ? (picked.includes(idx)?'hit':'miss') : (picked.includes(idx)?'false':'clean')
+  }));
   S._recognized = recognized;
   S.total += hostileTotal;
   S.correct += hostileFound;
@@ -952,13 +1391,55 @@ function resolveFeed(){
   // жива довіра (задача 10): хибна тривога -2, пропущений явний наратив -1
   const repDelta = falseAlarms*-2 + missedExplicit*-1;
   if(repDelta) setRep(repDelta);
-  if(S.i===0){
+  if(inFirstOp()){
     if(falseAlarms>0) showHint('feed_false_alarm');
     if(missedSubtle>0) showHint('feed_missed_subtle');
   }
   const delta = (clean?gainAdj(gain):gain) + pen(loss);
-  setTimeout(()=>{ setInfl(delta, delta>0?'Розпізнавання':'Промахи'); },350);
-  appendActionBtn('<button class="btn" onclick="wildThen(\'phaseTech\')">ДАЛІ · АНАЛІЗ ТЕХНІКИ</button>');
+  setTimeout(()=>{ setInfl(delta, delta>0?t('recognition'):t('misses')); },350);
+  // задача «Вишневе»: sc.subQuestion — той самий тип питання, що й techniques
+  // (штатне single-choice), лише додаткове уточнення перед аналізом техніки.
+  const nextAfterFeed = sc.subQuestion ? 'phaseSubQuestion' : 'phaseTech';
+  const feedNote = falseAlarms>0 ? '<p class="report-note">'+t('fullReportNote')+'</p>' : '';
+  appendActionBtn(feedNote+'<button class="btn" onclick="wildThen(\''+nextAfterFeed+'\')">'+t('nextTechAnalysis')+'</button>');
+}
+
+/* ---------- Підпитання (задача «Вишневе»): уточнення ролі конкретного джерела.
+   Штатне single-choice питання — той самий патерн UI/логіки, що й phaseTech
+   (клік по картці, миттєвий фідбек, підсвітка вірної/хибної), лише параметризовано
+   довільним {q,opts} замість sc.techniques. Вставляється між розпізнаванням
+   у стрічці й аналізом техніки, коли в операції є sc.subQuestion. НЕ новий тип
+   питання — той самий single-choice формат, що й у інших операціях. */
+function phaseSubQuestion(){
+  const sc = SCENARIOS[S.i];
+  const q = sc.subQuestion;
+  const order = shuffled(q.opts.length);
+  render(`
+    <div class="ph-analysis">
+    <div class="eyebrow phase-title">${t('phase1bTitle')}</div>
+    <div class="task">🔬 <div>${q.q}</div></div>
+    <div class="opts">
+      ${order.map(idx=>{const o=q.opts[idx];return `
+        <button class="opt" data-i="${idx}" onclick="pickSubQuestion(${idx})"><b>${o.n}</b>${optDesc(o.d)}</button>`}).join('')}
+    </div>
+    ${narrativesBlockHTML()}
+    </div>`);
+}
+function pickSubQuestion(idx){
+  const sc = SCENARIOS[S.i], q = sc.subQuestion;
+  S.total++;
+  const ok = q.opts[idx].ok;
+  S._op.subOK = ok;
+  if(ok){ S.correct++; S.streak++; } else S.streak=0;
+  q.opts.forEach((o,j)=>{
+    const el = document.querySelector('.opt[data-i="'+j+'"]');
+    el.disabled = true;
+    if(o.ok){ el.classList.add('good'); el.insertAdjacentHTML('beforeend','<div class="expl">'+o.e+'</div>'); }
+    else if(j===idx){ el.classList.add('bad','shake'); el.insertAdjacentHTML('beforeend','<div class="expl">'+o.e+'</div>'); }
+    else el.classList.add('dim');
+  });
+  setInfl(ok?gainAdj(7):pen(-8), ok?t('accurate'):t('wrong'));
+  appendActionBtn('<button class="btn" onclick="wildThen(\'phaseTech\')">'+t('nextTechAnalysis')+'</button>');
 }
 
 /* ---------- Wildcard ---------- */
@@ -975,21 +1456,21 @@ function wildThen(fnName){
 function showWild(w, fnName){
   if(w.type==='inst'){
     render(`
-      <div class="eyebrow" style="color:var(--purple)">НЕОЧІКУВАНА ПОДІЯ</div>
+      <div class="eyebrow" style="color:var(--purple)">${t('unexpectedEvent')}</div>
       <div class="wild">
         <h3>${w.h}</h3>
         <p>${w.p}</p>
       </div>
-      <button class="btn" onclick="window['${fnName}']()">ПРИЙНЯТИ Й ПРАЦЮВАТИ ДАЛІ</button>`);
+      <button class="btn" onclick="window['${fnName}']()">${t('acceptAndContinue')}</button>`);
     // Ефект застосовуємо синхронно одразу при показі події: шкала в топбарі анімується
     // своїм CSS-переходом, ефект видимий до «продовжити» й не губиться (rAF/таймер у
     // прихованій вкладці можуть не спрацювати).
-    if(w.fx) setInfl(w.fx>0?w.fx:pen(w.fx), w.fx>0?'Подія':'Подія');
+    if(w.fx) setInfl(w.fx>0?w.fx:pen(w.fx), t('eventLabel'));
     if(w.rep) setRep(w.rep);
     if(w.timerCut) S.timerCut = w.timerCut;
   } else {
     render(`
-      <div class="eyebrow" style="color:var(--purple)">НЕОЧІКУВАНА ПОДІЯ · 15 СЕКУНД</div>
+      <div class="eyebrow" style="color:var(--purple)">${t('unexpectedEvent15s')}</div>
       <div class="wild">
         <h3>${w.h}</h3>
         <p>${w.p}</p>
@@ -1003,7 +1484,7 @@ function showWild(w, fnName){
     S._wildDone = false;
     startWildTimer(15);
   }
-  if(S.i===0) showHint('wildcard_first');   // після render(), інакше підказку одразу змиє очищення екрана
+  if(inFirstOp()) showHint('wildcard_first');   // після render(), інакше підказку одразу змиє очищення екрана
 }
 /* FIX 2а: той самий Date.now()-based патерн, що й у startTimer — стійкий до тротлінгу вкладки. */
 function startWildTimer(seconds, total){
@@ -1034,14 +1515,14 @@ function wildPick(key, timedOut){
   picked.classList.add(goodPick?'good':'bad');
   if(!goodPick) picked.classList.add('shake');
   notPicked.classList.add('dim');
-  picked.insertAdjacentHTML('beforeend','<div class="expl">'+(timedOut?'Час вийшов, рішення прийняли за тебе. ':'')+o.e+'</div>');
+  picked.insertAdjacentHTML('beforeend','<div class="expl">'+(timedOut?t('timeUpPrefix'):'')+o.e+'</div>');
   // ФІКС 2: звук — за сенсом (goodPick), не за знаком дельти. Пастки на кшталт
   // witch.b/botfarm.b мають fx>0, але cons:true+rep<0 — картка вже показує 'bad',
   // а без цього явного sfx звук зрадницьки грав би 'gain'.
-  setInfl(o.fx>0?o.fx:pen(o.fx),'Подія', goodPick?'gain':'loss');
+  setInfl(o.fx>0?o.fx:pen(o.fx),t('eventLabel'), goodPick?'gain':'loss');
   if(o.rep) setRep(o.rep);
   if(o.cons) S.cons++;
-  appendActionBtn('<button class="btn" onclick="window[\''+S._wildNext+'\']()">ПРОДОВЖИТИ</button>');
+  appendActionBtn('<button class="btn" onclick="window[\''+S._wildNext+'\']()">'+t('continueBtn')+'</button>');
 }
 
 /* ---------- Пам'ять вибору (задача 9): «РОЗКРИТІ НАРАТИВИ» ---------- */
@@ -1055,16 +1536,62 @@ function narrativesBlockHTML(){
     const short = m.t.length>80 ? m.t.slice(0,80)+'…' : m.t;
     return '<div class="narr-card'+(r.found?'':' narr-missed')+'" onclick="toggleNarr(this)">'
       + '<div class="narr-head"><span class="narr-author">'+m.a+'</span>'
-      +   '<span class="narr-tags"><span class="narr-tag '+(subtle?'sub':'ob')+'">'+(subtle?'ТОНКИЙ':'ЯВНИЙ')+'</span>'
-      +   (r.found?'':'<span class="narr-tag miss">ПРОПУЩЕНО</span>')+'</span></div>'
+      +   '<span class="narr-tags"><span class="narr-tag '+(subtle?'sub':'ob')+'">'+(subtle?t('tagSubtle'):t('tagExplicit'))+'</span>'
+      +   (r.found?'':'<span class="narr-tag miss">'+t('tagMissed')+'</span>')+'</span></div>'
       + (showSubtype && m.subtype ? '<div class="narr-subtype">'+m.subtype+'</div>' : '')
       + '<div class="narr-text short">'+short+'</div>'
       + '<div class="narr-text full">'+m.t+'</div>'
       + '</div>';
   }).join('');
-  return '<div class="narr-block"><div class="narr-label">РОЗКРИТІ НАРАТИВИ · ДОВІДКА · ОПЕРАЦІЯ «'+SCENARIOS[S.i].node.replace('☠ ','')+'»</div><div class="narr-list">'+cards+'</div></div>';
+  return '<div class="narr-block"><div class="narr-label">'+t('revealedNarrativesLabel', SCENARIOS[S.i].node.replace('☠ ',''))+'</div><div class="narr-list">'+cards+'</div></div>';
 }
 function toggleNarr(el){ el.classList.toggle('narr-open'); }
+
+/* ---- Згортання довгого тексту (референс: пости ФБ) --------------------
+   Один механізм на два місця: описи опцій (2 рядки, поріг 90) і пости
+   стрічки (4 рядки, поріг 240). toggleClamp — спільний обробник; завжди
+   stopPropagation, бо і .opt, і .msg клікабельні (вибір відповіді /
+   позначення поста). Коротший за поріг текст рендериться без обгортки. */
+const OPT_CLAMP_LEN = 90;
+const MSG_CLAMP_LEN = 240;
+/* Правка плейтесту (п.2): у місії картка опції показує ЛИШЕ заголовок, опис
+   з'являється по кліку «показати більше» (незалежно від довжини). Опис
+   схований (.opt-d.clamped -> display:none), toggleClamp його розкриває. */
+function optDesc(d){
+  if(!d) return '';
+  return `<span class="opt-d clamped">${d}</span><span class="opt-more" onclick="toggleClamp(event,this)">${t('seeMore')}</span>`;
+}
+function msgTextHTML(txt){
+  if(!txt || txt.length <= MSG_CLAMP_LEN) return '<div class="msg-text">'+txt+'</div>';
+  return '<div class="msg-text clamped">'+txt+'</div>'
+       + '<span class="msg-more" role="button" tabindex="0" onclick="toggleClamp(event,this)" onkeydown="if(event.key===\'Enter\'){toggleClamp(event,this)}else{event.stopPropagation()}">'+t('seeMore')+'</span>';
+}
+function toggleClamp(ev, el){
+  ev.stopPropagation();                       // НЕ тригерити pickMsg/вибір опції
+  const d = el.previousElementSibling;
+  const open = d.classList.toggle('clamped') === false;
+  el.textContent = open ? t('seeLess') : t('seeMore');
+}
+
+/* ---------- Флоу-рефакторинг, Фаза 1: короткий фідбек у місії ----------
+   Двигун відокремлює гру від розбору: під час місії показуємо тільки вердикт
+   + перше речення пояснення, повний текст (`e`, `w`) переїжджає в AAR-звіт після
+   операції. firstSentence — runtime-витяг, content.js НЕ редагується. */
+function firstSentence(s){
+  if(!s) return "";
+  const m = s.match(/^[^.!?]*[.!?]/);
+  let out = m ? m[0].trim() : s.trim();
+  if(out.length < 15){                 // «Так.» надто коротке — беремо ще одне речення
+    const rest = s.slice(m ? m[0].length : 0);
+    const m2 = rest.match(/^[^.!?]*[.!?]/);
+    out = (out + ' ' + (m2 ? m2[0].trim() : rest.trim())).trim();
+  }
+  return out;
+}
+/* Короткий блок пояснення під опцією: вердикт + перше речення. Повний розбір — в AAR. */
+function verdictExpl(right, e){
+  return '<div class="expl">'+(right?t('verdictRight'):t('verdictWrong'))+' '+firstSentence(e)+'</div>';
+}
 
 /* ---------- Фази 2-4 ---------- */
 function phaseTech(){
@@ -1078,47 +1605,48 @@ function phaseTech(){
   S.lastTechPos = order.indexOf(okIdx);
   render(`
     <div class="ph-analysis">
-    <div class="eyebrow phase-title">ФАЗА 2 · НАЗВИ ТЕХНІКУ</div>
+    <div class="eyebrow phase-title">${t('phase2Title')}</div>
     <div class="task">🔬 <div>${sc.techniques.q}</div></div>
     <div class="opts">
       ${order.map(idx=>{const o=sc.techniques.opts[idx];return `
-        <button class="opt" data-i="${idx}" onclick="pickTech(${idx})"><b>${o.n}</b>${o.d}</button>`}).join('')}
+        <button class="opt" data-i="${idx}" onclick="pickTech(${idx})"><b>${o.n}</b>${optDesc(o.d)}</button>`}).join('')}
     </div>
     ${narrativesBlockHTML()}
     </div>`);
-  if(S.i===0) showHint('tech_enter');
+  if(inFirstOp()) showHint('tech_enter');
 }
 function pickTech(idx){
   const sc = SCENARIOS[S.i]; S.total++;
   const ok = sc.techniques.opts[idx].ok;
-  S._techOK = ok; S._op.techOK = ok;
+  S._techOK = ok; S._op.techOK = ok; S._op.techPick = idx;   // Ф1: pick → AAR
   S._techAnswered = true;   // задача 12, Б4: підтипи наративів з'являються тільки після відповіді у фазі 2
-  if(ok){ S.correct++; S.streak++; if(!S.badges.includes(sc.badge)){S.badges.push(sc.badge); setTimeout(()=>{ toast('БЕЙДЖ: '+sc.badge,'plus'); SFX.play('badge'); },1800);} }
+  if(ok){ S.correct++; S.streak++; if(!S.badges.includes(sc.badge)){S.badges.push(sc.badge); setTimeout(()=>{ toast(t('badgeToast',sc.badge),'plus'); SFX.play('badge'); },1800);} }
   else S.streak=0;
+  // Флоу-рефакторинг Ф1: у місії лише вердикт + перше речення; повне `e` — в AAR
   sc.techniques.opts.forEach((o,j)=>{
     const el = document.querySelector('.opt[data-i="'+j+'"]');
     el.disabled = true;
-    if(o.ok){ el.classList.add('good'); el.insertAdjacentHTML('beforeend','<div class="expl">'+o.e+'</div>'); }
-    else if(j===idx){ el.classList.add('bad','shake'); el.insertAdjacentHTML('beforeend','<div class="expl">'+o.e+'</div>'); }
+    if(o.ok){ el.classList.add('good'); el.insertAdjacentHTML('beforeend', verdictExpl(true, o.e)); }
+    else if(j===idx){ el.classList.add('bad','shake'); el.insertAdjacentHTML('beforeend', verdictExpl(false, o.e)); }
     else el.classList.add('dim');
   });
-  setInfl(ok?gainAdj(7):pen(-8), ok?'Техніку розкрито':'Хибний аналіз');
+  setInfl(ok?gainAdj(7):pen(-8), ok?t('techRevealed'):t('wrongAnalysis'));
   const next = sc.audiences ? 'phaseAudience' : 'phaseCounter';
-  appendActionBtn('<button class="btn" onclick="wildThen(\''+next+'\')">ДАЛІ · ПРОТИДІЯ</button>');
+  appendActionBtn('<p class="report-note">'+t('fullReportNote')+'</p><button class="btn" onclick="wildThen(\''+next+'\')">'+t('nextCounter')+'</button>');
 }
 
 function phaseAudience(){
   const sc = SCENARIOS[S.i];
   render(`
     <div class="ph-counter ph-aud">
-    <div class="phase-banner live">📡 ОБИРАЄШ НАПРЯМОК УДАРУ</div>
-    <div class="eyebrow phase-title">ФАЗА 3 · НАПРЯМОК</div>
+    <div class="phase-banner live">${t('chooseTargetBanner')}</div>
+    <div class="eyebrow phase-title">${t('phase3AudienceTitle')}</div>
     <div class="task">📡 <div>${sc.audienceQ}</div></div>
     <div class="opts">
       ${sc.audiences.map((a,idx)=>`
         <button class="opt" onclick="pickAudience(${idx})"><b>${a.n}</b>${a.d}</button>`).join('')}
     </div>
-    <p class="lead" style="margin-top:12px;font-size:13px">Обидва напрямки правильні. У повній версії команди ділять їх між собою, у демо обираєш один.</p>
+    <p class="lead" style="margin-top:12px;font-size:13px">${t('bothDirectionsNote')}</p>
     ${narrativesBlockHTML()}
     </div>`);
 }
@@ -1128,27 +1656,27 @@ function phaseCounter(){
   const sc = SCENARIOS[S.i];
   const c = sc.audiences ? sc.audiences[S.audience].counters : sc.counters;
   // задача 12, В8: бос забирає з таймера контрходу ще й додаткові секунди від сюжету
-  const t = Math.max(12, S.role.time - S.timerCut - (sc.bossTimerCut||0));
-  S._op.timeTotal = t;
+  const tSec = Math.max(12, S.role.time - S.timerCut - (sc.bossTimerCut||0));
+  S._op.timeTotal = tSec;
   S._counterDone = false;   // задача 11: чи гравець уже відповів (щоб не відновлювати таймер даремно)
   const order = shuffled(c.opts.length);
   render(`
     <div class="ph-counter">
-    <div class="phase-banner live">🔴 ЕФІР ЖИВИЙ · ВОРОЖА ВЕРСІЯ ШИРИТЬСЯ</div>
-    <div class="eyebrow phase-title">ФАЗА ${sc.audiences?'4':'3'} · КОНТРНАРАТИВ</div>
-    <div class="timer" id="timerBox">⏱ <span class="t" id="timerT">${t}</span>
+    <div class="phase-banner live">${t('liveAirBanner')}</div>
+    <div class="eyebrow phase-title">${t('phaseCounterTitle', sc.audiences?'4':'3')}</div>
+    <div class="timer" id="timerBox">⏱ <span class="t" id="timerT">${tSec}</span>
       <div class="timer-bar"><i id="timerBar" style="width:100%"></i></div>
-      <span class="note">вакуум працює на ворога</span>
+      <span class="note">${t('vacuumNote')}</span>
     </div>
     <div class="task">⚔️ <div>${c.q}</div></div>
     <div class="opts">
       ${order.map(idx=>{const o=c.opts[idx];return `
-        <button class="opt" data-i="${idx}" onclick="pickCounter(${idx})"><b>${o.n}</b>${o.d}</button>`}).join('')}
+        <button class="opt" data-i="${idx}" onclick="pickCounter(${idx})"><b>${o.n}</b>${optDesc(o.d)}</button>`}).join('')}
     </div>
     ${narrativesBlockHTML()}
     </div>`);
-  startTimer(t);
-  if(S.i===0) showHint('counter_enter');
+  startTimer(tSec);
+  if(inFirstOp()) showHint('counter_enter');
 }
 function pickCounter(idx){
   S._counterDone = true;
@@ -1163,8 +1691,11 @@ function pickCounter(idx){
   const repDelta = (o.rep||0) + (o.best?3:0);
   if(repDelta) setTimeout(()=>setRep(repDelta), 900);   // затримка, щоб не забити тост впливу нижче
   S._op.counter = o.best ? 'best' : (o.fx<0 ? 'bad' : 'mid');
+  S._op.counterPick = idx;   // Ф1: pick → AAR
   S._op.timeLeft = S._timeLeft||0;
   S.results.push({tech: sc.tech, techOK: S._techOK, counterGood: !!o.best});
+  // Флоу-рефакторинг Ф1: у місії лише вердикт + перше речення; повне `e` — в AAR.
+  // Вердикт бінарний проти best — так само, як гра рахує помилку (counter!=='best').
   c.opts.forEach((op,j)=>{
     const el = document.querySelector('.opt[data-i="'+j+'"]');
     el.disabled = true;
@@ -1172,34 +1703,25 @@ function pickCounter(idx){
     if(j===idx){
       el.classList.add(cls);
       if(op.fx<0) el.classList.add('shake');
-      el.insertAdjacentHTML('beforeend','<div class="expl">'+op.e+'</div>');
+      el.insertAdjacentHTML('beforeend', verdictExpl(!!op.best, op.e));
     }
-    else if(op.best){ el.classList.add('good'); el.insertAdjacentHTML('beforeend','<div class="expl">'+op.e+'</div>'); }
+    else if(op.best){ el.classList.add('good'); el.insertAdjacentHTML('beforeend', verdictExpl(true, op.e)); }
     else el.classList.add('dim');
   });
   // PATCH B5: чесний фідбек середньої опції — не видавати частковий ефект за перемогу
-  const label = o.best ? 'Контрнаратив працює' : (o.fx>0 ? 'Частковий ефект' : 'Хід на користь ІПСО');
+  const label = o.best ? t('counterWorks') : (o.fx>0 ? t('partialEffect') : t('ipsoFavorMove'));
   setInfl(o.fx>0?gainAdj(o.fx,true):pen(o.fx), label, (!o.best && o.fx>0) ? false : undefined);
-  appendActionBtn('<button class="btn" onclick="phaseDebrief()">ДАЛІ · РОЗБІР</button>');
+  appendActionBtn('<p class="report-note">'+t('fullReportNote')+'</p><button class="btn" onclick="phaseAAR()">'+t('nextDebrief')+'</button>');
 }
 
-function phaseDebrief(){
-  const sc = SCENARIOS[S.i];
-  render(`
-    <div class="eyebrow">РОЗБІР ОПЕРАЦІЇ</div>
-    <h2>${sc.title}</h2>
-    <div class="card debrief"><p style="line-height:1.65;font-size:15px">${sc.debrief}</p></div>
-    ${narrativesBlockHTML()}
-    <button class="btn" onclick="phaseRank()">ОЦІНКА ОПЕРАЦІЇ ▸</button>`);
-}
-
-/* ---------- Ранг за операцію (S/A/B/C) ---------- */
+/* ---------- Ранг за операцію (A/B/C) ---------- */
 /* Задача 12, В7: шкала A/B/C без S. Помилка рахується за кожен пропуск, кожну
    хибну тривогу, хибну техніку та неоптимальний контрхід. 0 помилок = A,
    рівно 1 = B, дві й більше = C. */
 function countMistakes(d){
   let m = (d.miss||0) + (d.false||0);
   if(!d.techOK) m++;
+  if(d.subOK===false) m++;   // задача «Вишневе»: підпитання рахується лише коли операція його ставить
   if(d.counter!=='best') m++;
   if(d.timedOut) m++;   // PATCH B1: таймаут = помилка
   return m;
@@ -1210,54 +1732,124 @@ function gradeOp(){
   if(mistakes===1) return 'B';
   return 'C';
 }
-function phaseRank(){
-  if(S.infl <= 8){
-    SFX.play('loss');
-    render(`
-      <div style="padding-top:6vh;text-align:center">
-        <div class="eyebrow" style="color:var(--hostile)">ОПЕРАЦІЮ ПРОВАЛЕНО</div>
-        <div class="rank low">НАРАТИВ ЗАКРІПИВСЯ</div>
-        <p class="lead" style="max-width:440px;margin:0 auto 20px">Вплив ІПСО дійшов критичної межі: ворожа версія закріпилась і стала правдою за замовчуванням для твоєї аудиторії. Витіснити наратив, що вже вкорінився, у рази дорожче, ніж не пустити його. У тренажері є розкіш, якої нема в реальності: розберись, які рішення віддали поле, і зайди в операцію ще раз.</p>
-        <button class="btn" onclick="replayOp()">↻ ПЕРЕПРОЙТИ ОПЕРАЦІЮ</button>
-        <button class="btn ghost" onclick="restart()">ПОЧАТИ КАМПАНІЮ ЗАНОВО</button>
-      </div>`);
-    return;
-  }
+
+/* ---------- Флоу-рефакторинг, Фаза 1: AAR (звіт після операції) ----------
+   Гру і розбір розведено: у місії — короткий вердикт, тут — повний розбір.
+   Один екран замість дебрифу+рангу: результат і дельти за операцію, розбір
+   стрічки (повні `w` чесних постів + підтипи ворожих), техніка й контрхід із
+   повними `e`, дебриф, кліфхенгер. Показується і на перемозі, і на поразці
+   (infl<=8). AAR лише ЧИТАЄ підсумки — логіка впливу/довіри/рангу не змінена. */
+function phaseAAR(){
   const sc = SCENARIOS[S.i], d = S._op || {};
+  const defeated = S.infl <= 8;
   const g = gradeOp();
-  // задача 6: якщо операцію 1 закрито погано (ранг C або нечисте розпізнавання) — вмикаємо мутацію у фіналі
-  if(S.i===0) S.op1Bad = (g==='C') || !S._spotClean;
+  // задача 6: якщо БЛЕКАУТ закрито погано — вмикаємо мутацію у фіналі (хук лишається де й був, у рангу)
+  if(sc.id==='blackout') S.op1Bad = (g==='C') || !S._spotClean;
+  SFX.play(defeated ? 'loss' : 'result');
+
+  /* --- результат / шапка --- */
   const gcls = 'gr-'+g.toLowerCase();
+  const subs = {A:t('rankSubA'),B:t('rankSubB'),C:t('rankSubC')};
   const frac = d.timeTotal>0 ? Math.round(d.timeLeft/d.timeTotal*100) : 0;
-  let parts=[];
-  if(d.miss) parts.push(d.miss+' пропущено');
-  if(d.false) parts.push(d.false+' хибних');
-  const recV = d.found+'/'+d.total+(parts.length?' · '+parts.join(', '):' · чисто');
-  const techV = d.techOK ? '✓ вірно' : '✗ хибно';
-  const cV = d.counter==='best'?'оптимальний':(d.counter==='mid'?'середній':'шкідливий');
-  const spV = d.timedOut ? 'час вичерпано · вакуум' : d.timeLeft+'с лишок · '+frac+'%';
-  // колір кожного рядка за власною оцінкою: гуд зелений, середнє жовте (без класу, дефолт), погане червоне
+  let parts=[]; if(d.miss) parts.push(d.miss+' '+t('missedWord')); if(d.false) parts.push(d.false+' '+t('falseWord'));
+  const recV = (d.found||0)+'/'+(d.total||0)+(parts.length?' · '+parts.join(', '):' · '+t('cleanWord'));
+  const techV = d.techOK ? t('correctMark') : t('wrongMark');
+  const cV = d.counter==='best'?t('optimalCounter'):(d.counter==='mid'?t('midCounter'):t('harmfulCounter'));
+  const spV = d.timedOut ? t('timeUpVacuum') : t('timeLeftFrac', d.timeLeft, frac);
   const errCount = (d.miss||0)+(d.false||0);
   const recCls = errCount===0 ? 'good' : (errCount>=2 ? 'bad' : '');
   const techCls = d.techOK ? 'good' : 'bad';
   const cCls = d.counter==='best' ? 'good' : (d.counter==='bad' ? 'bad' : '');
   const spCls = d.timedOut ? 'bad' : '';
-  const subs = {A:'бездоганно',B:'одна помилка, тримайся',C:'є над чим працювати'};
-  SFX.play('result');
+  // дельти за операцію: різниця з переднім знімком старту (лише читання)
+  const snap = S._snap || {infl:S.infl, rep:S.rep};
+  const dInfl = S.infl - snap.infl, dRep = S.rep - snap.rep;
+  const dlt = v => (v>0?'+':'')+v, dcls = v => v>0?'good':(v<0?'bad':'');
+
+  const headHTML = defeated
+    ? `<div class="eyebrow" style="color:var(--hostile)">${t('failedTitle')}</div>
+       <div class="rank low">${t('failedRank')}</div>
+       <p class="lead" style="max-width:440px;margin:0 auto 16px">${t('failedText')}</p>`
+    : `<div class="grade ${gcls}">${g}</div><div class="grade-sub">${subs[g]}</div>`;
+
+  const resultCard = `
+    <div class="card" style="text-align:left">
+      <div class="stat"><span>${t('statRecognition')}</span><span class="v ${recCls}">${recV}</span></div>
+      <div class="stat"><span>${t('statTechAnalysis')}</span><span class="v ${techCls}">${techV}</span></div>
+      <div class="stat"><span>${t('statCounter')}</span><span class="v ${cCls}">${cV}</span></div>
+      <div class="stat"><span>${t('statSpeed')}</span><span class="v ${spCls}">${spV}</span></div>
+      <div class="stat"><span>${t('aarResilDelta')}</span><span class="v ${dcls(dInfl)}">${dlt(dInfl)}</span></div>
+      <div class="stat"><span>${t('aarTrustDelta')}</span><span class="v ${dcls(dRep)}">${dlt(dRep)}</span></div>
+    </div>`;
+
+  /* --- розбір стрічки: повний `w` чесних постів + підтип ворожих --- */
+  const markLabel = {hit:t('aarMarkHit'), miss:t('aarMarkMiss'), false:t('aarMarkFalse'), clean:t('aarMarkClean')};
+  const feedHTML = (d.review||[]).map(r=>{
+    const detail = r.hostile
+      ? (r.subtype ? '<div class="aar-post-sub">'+(r.tier==='sub'?t('tagSubtle'):t('tagExplicit'))+' · '+r.subtype+'</div>' : '')
+      : (r.w ? '<div class="aar-post-w">'+r.w+'</div>' : '');
+    return '<div class="aar-post '+r.marker+'"><div class="aar-post-head"><span class="aar-post-author">'+r.a+'</span>'
+      + '<span class="aar-post-mark">'+markLabel[r.marker]+'</span></div>'+detail+'</div>';
+  }).join('');
+  const feedSection = feedHTML ? '<div class="aar-section-h">'+t('aarFeedSection')+'</div><div class="aar-feed">'+feedHTML+'</div>' : '';
+
+  /* --- техніка --- */
+  const tOpts = sc.techniques ? sc.techniques.opts : [];
+  const tPick = tOpts[d.techPick], tRight = tOpts.find(o=>o.ok);
+  const techSection = tPick ? '<div class="aar-section-h">'+t('aarTechSection')+'</div>'+aarReviewCard(!!tPick.ok, tPick, tRight) : '';
+
+  /* --- контрхід (гілка аудиторії, якщо є) --- */
+  const cc = sc.audiences ? (sc.audiences[S.audience]||{}).counters : sc.counters;
+  const cOpts = cc ? cc.opts : [];
+  const cPick = cOpts[d.counterPick], cRight = cOpts.find(o=>o.best);
+  const counterSection = cPick ? '<div class="aar-section-h">'+t('aarCounterSection')+'</div>'+aarReviewCard(!!cPick.best, cPick, cRight) : '';
+
+  /* --- Фаза 3 (майбутнє): тут вставляється картка «ТЕХНІКУ РОЗКРИТО» --- */
+
+  // поразка зберігає стару семантику: операція не зараховується, лише перепройти/спочатку
+  const btns = defeated
+    ? '<button class="btn" onclick="replayOp()">'+t('replayOp')+'</button>'
+      + '<button class="btn ghost" onclick="restart()">'+t('restartCampaign')+'</button>'
+    : '<button class="btn" onclick="nextScenario()">'+(sc.boss ? t('summaryBtn') : t('toMapBtn'))+'</button>'
+      + '<button class="btn ghost" onclick="replayOp()">'+t('replayOp')+'</button>';
+  const cliffHTML = (sc.cliff && !defeated) ? '<div class="cliff aar-cliff"><b>'+t('meanwhile')+'</b>'+sc.cliff+'</div>' : '';
+
+  // п.7: за замовчуванням видно тільки таблицю результату; решта — під кнопкою
+  const detailHTML = `
+      ${feedSection}
+      ${techSection}
+      ${counterSection}
+      <div class="aar-section-h">${t('debriefTitle')}</div>
+      <div class="card debrief"><p style="line-height:1.65;font-size:15px">${sc.debrief}</p></div>
+      ${cliffHTML}`;
   render(`
-    <div style="padding-top:3vh;text-align:center">
-      <div class="eyebrow">ОЦІНКА ОПЕРАЦІЇ · ${sc.node}</div>
-      <div class="grade ${gcls}">${g}</div>
-      <div class="grade-sub">${subs[g]}</div>
-      <div class="card" style="text-align:left">
-        <div class="stat"><span>Розпізнавання</span><span class="v ${recCls}">${recV}</span></div>
-        <div class="stat"><span>Аналіз техніки</span><span class="v ${techCls}">${techV}</span></div>
-        <div class="stat"><span>Контрхід</span><span class="v ${cCls}">${cV}</span></div>
-        <div class="stat"><span>Швидкість</span><span class="v ${spCls}">${spV}</span></div>
-      </div>
-      <button class="btn" onclick="nextScenario()">${S.i < SCENARIOS.length-1 ? 'ДО МАПИ ▸' : 'ПІДСУМОК ▸'}</button>
-      <button class="btn ghost" onclick="replayOp()">↻ ПЕРЕПРОЙТИ ОПЕРАЦІЮ</button>
+    <div class="aar">
+      <div class="eyebrow">${t('aarTitle')} · ${sc.node}</div>
+      <h2>${sc.title}</h2>
+      <div class="aar-head">${headHTML}</div>
+      ${resultCard}
+      <button class="btn ghost aar-detail-toggle" onclick="toggleAARDetail(this)">${t('aarDetailShow')}</button>
+      <div class="aar-detail">${detailHTML}</div>
+      <div class="aar-btns">${btns}</div>
     </div>`);
+}
+function toggleAARDetail(btn){
+  const d = document.querySelector('.aar-detail');
+  if(!d) return;
+  const open = d.classList.toggle('open');
+  btn.textContent = open ? t('aarDetailHide') : t('aarDetailShow');
+}
+/* Картка розбору однієї відповіді: твій вибір (вердикт + повне `e`) і, якщо була
+   помилка, правильний варіант з його повним `e`. */
+function aarReviewCard(right, pick, correct){
+  const yours = '<div class="aar-pick '+(right?'good':'bad')+'">'
+    + '<div class="aar-pick-h">'+t('aarYourPick')+' · '+(right?t('verdictRight'):t('verdictWrong'))+'</div>'
+    + '<b>'+pick.n+'</b><div class="aar-pick-e">'+pick.e+'</div></div>';
+  const rightCard = (!right && correct && correct!==pick)
+    ? '<div class="aar-pick good"><div class="aar-pick-h">'+t('aarRightPick')+'</div>'
+      + '<b>'+correct.n+'</b><div class="aar-pick-e">'+correct.e+'</div></div>'
+    : '';
+  return yours + rightCard;
 }
 /* Рестарт поточної операції без скидання кампанії: відкат до знімка старту. */
 function replayOp(){
@@ -1268,16 +1860,18 @@ function replayOp(){
   setInfl(0);   // перемалювати шкалу й HUD під відновлені значення
   startScenario();
 }
+/* Мапа-хаб (скасовує лінійну послідовність 3+3): після дебрифу гравець завжди
+   повертається на мапу, а не автоматично «йде далі» по масиву. Завершення
+   боса — єдиний вихід у фінал кампанії. */
 function nextScenario(){
   const sc = SCENARIOS[S.i];
-  const leavingOp1 = (S.i===0);
-  if(S.i < SCENARIOS.length-1){
-    const cliff = sc.cliff; S.i++; campaignMap(cliff);
-    // задача 11: прощальна підказка й вимкнення туторіалу лишень після неї,
-    // щоб сама підказка встигла спрацювати, поки tutorialDone ще false
-    if(leavingOp1){ showHint('map_after_op1'); tutorialDone = true; }
-  }
-  else finale();
+  const wasFirstOp = (sc.id === firstOpId);
+  markCompleted(sc.id);
+  if(sc.boss){ finale(); return; }
+  campaignMap();   // Ф1: кліфхенгер переїхав у AAR (тизер останнім у звіті), на мапі більше не дублюється
+  // задача 11: прощальна підказка й вимкнення туторіалу лишень після неї,
+  // щоб сама підказка встигла спрацювати, поки tutorialDone ще false
+  if(wasFirstOp){ showHint('map_after_op1'); tutorialDone = true; }
 }
 
 function finale(){
@@ -1288,8 +1882,8 @@ function finale(){
   const doCrisis = S.cons >= 2;
   if(doCrisis){
     crisisHtml = `<div class="crisis">
-      <h3>⚠ ПОДІЯ: ГУЧНЕ МОВЧАННЯ</h3>
-      <p>Кілька разів ти обирав «заспокоїти» замість «відповісти». Зовні ставало тихіше, але питання без відповідей нікуди не дівались. Вони консервувались і тепер вибухнули падінням довіри. Гучне мовчання не означає відсутності проблем. Воно означає їхню консервацію. Стійкість −10.</p>
+      <h3>${t('silenceEventTitle')}</h3>
+      <p>${t('silenceEventText')}</p>
     </div>`;
   }
   // FIX 3: одразу рендеримо проміжний екран без кнопок — убиває і дабл-клік "ПІДСУМОК",
@@ -1297,9 +1891,9 @@ function finale(){
   if(doCrisis){
     render(`
       <div style="padding-top:3vh;text-align:center">
-        <div class="eyebrow">ПІДСУМОК КАМПАНІЇ</div>
+        <div class="eyebrow">${t('campaignSummary')}</div>
         ${crisisHtml}
-      </div>`);
+      </div>`, true);   // вузлова точка 4: вхід у фінал (після боса)
   }
 
   const resilient = [...new Set(S.results.filter(r=>r.techOK && r.counterGood).map(r=>r.tech))];
@@ -1307,56 +1901,50 @@ function finale(){
 
   const doRender = ()=>{
     let rank, cls, note;
-    if(S.infl>=78){ rank='ІНФОСТІЙКИЙ'; cls='gold'; note='Лінія впливу на твоєму боці. Ти читаєш техніки, а не заголовки.'; }
-    else if(S.infl>=52){ rank='МЕДІАГРАМОТНИЙ'; cls='mid'; note='Основу тримаєш. Частина рішень зіграла на ворожий фрейм, розбори підкажуть де саме.'; }
-    else { rank='ЖЕРТВА МЕТОДИЧКИ'; cls='low'; note='Наративи пройшли крізь оборону. Хороша новина: тепер ти знаєш, де саме. А це вже половина захисту.'; }
+    if(S.infl>=78){ rank=t('rankResilient'); cls='gold'; note=t('rankResilientNote'); }
+    else if(S.infl>=52){ rank=t('rankLiterate'); cls='mid'; note=t('rankLiterateNote'); }
+    else { rank=t('rankVictim'); cls='low'; note=t('rankVictimNote'); }
 
     render(`
       <div style="padding-top:3vh;text-align:center">
-        <div class="eyebrow">ПІДСУМОК КАМПАНІЇ · ${S.role.n}</div>
+        <div class="eyebrow">${t('campaignSummaryRole', S.role.n)}</div>
         <div class="rank ${cls}">${rank}</div>
         <p class="lead" style="max-width:440px;margin:0 auto 20px">${note}</p>
         <img class="finale-art" src="assets/finale_art.png" alt="" onerror="this.remove()">
         ${crisisHtml}
         <div class="card" style="text-align:left">
-          <div class="stat"><span>Фінальна стійкість</span><span class="v">${S.infl} / 100</span></div>
-          <div class="stat"><span>Довіра до тебе</span><span class="v">${S.rep} / 100</span></div>
-          <div class="stat"><span>Мін. довіра за кампанію</span><span class="v">${S.repMin} / 100</span></div>
-          <div class="stat"><span>Точні рішення</span><span class="v">${S.correct} з ${S.total}</span></div>
-          <div class="stat"><span>Бейджі технік</span><span class="v">${S.badges.length} / ${SCENARIOS.length}</span></div>
+          <div class="stat"><span>${t('finalResilience')}</span><span class="v">${S.infl} / 100</span></div>
+          <div class="stat"><span>${t('trustInYou')}</span><span class="v">${S.rep} / 100</span></div>
+          <div class="stat"><span>${t('minTrust')}</span><span class="v">${S.repMin} / 100</span></div>
+          <div class="stat"><span>${t('accurateDecisions')}</span><span class="v">${S.correct} ${t('ofWord')} ${S.total}</span></div>
+          <div class="stat"><span>${t('techBadges')}</span><span class="v">${S.badges.length} / ${SCENARIOS.length}</span></div>
         </div>
         <div class="card" style="text-align:left">
-          <div class="px" style="font-size:9px;color:var(--gold);margin-bottom:10px;line-height:1.7">ПРОФІЛЬ ВРАЗЛИВОСТІ</div>
-          ${resilient.length?'<div style="font-size:13px;color:var(--muted)">Стійкий до:</div><div class="vuln-row">'+resilient.map(t=>'<span class="chip ok">'+t+'</span>').join('')+'</div>':''}
-          ${vulnerable.length?'<div style="font-size:13px;color:var(--muted);margin-top:10px">Зона роботи:</div><div class="vuln-row">'+vulnerable.map(t=>'<span class="chip vuln">'+t+'</span>').join('')+'</div>':'<div style="font-size:13px;color:var(--ok);margin-top:10px">Чистий прохід по всіх техніках. Рідкість.</div>'}
-          <p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5">У повній версії профіль накопичується між сесіями і дає тренеру картину по підрозділу: які техніки пробивають людей найчастіше.</p>
+          <div class="px" style="font-size:9px;color:var(--gold);margin-bottom:10px;line-height:1.7">${t('vulnerabilityProfile')}</div>
+          ${resilient.length?'<div style="font-size:13px;color:var(--muted)">'+t('resilientTo')+'</div><div class="vuln-row">'+resilient.map(tc=>'<span class="chip ok">'+tc+'</span>').join('')+'</div>':''}
+          ${vulnerable.length?'<div style="font-size:13px;color:var(--muted);margin-top:10px">'+t('workZone')+'</div><div class="vuln-row">'+vulnerable.map(tc=>'<span class="chip vuln">'+tc+'</span>').join('')+'</div>':'<div style="font-size:13px;color:var(--ok);margin-top:10px">'+t('cleanRun')+'</div>'}
+          <p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5">${t('profileNote')}</p>
         </div>
         <div class="demo-note">
-          <h3>ТИ ЩОЙНО ПРОЙШОВ ДЕМО-ЗБІРКУ ЯДРА</h3>
-          <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:12px">Кампанія з 6 операцій, OSINT, аналіз технік і контрходи — все, що ти бачив, уже працює. Нижче — те, чого в демо ще нема.</p>
-          <h3>ПОВНА ВЕРСІЯ ДОДАСТЬ</h3>
+          <h3>${t('demoTitle')}</h3>
+          <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:12px">${t('demoText')}</p>
+          <h3>${t('fullVersionAdds')}</h3>
           <ul>
-            <li>Прогресію: починаєш простим пресофіцером, прокачуєш персонажа, відкриваєш складніші ролі й нові регіони мапи</li>
-            <li>Вільний вибір операцій на мапі — у демо порядок фіксований заради наскрізного сюжету</li>
-            <li>Прикладне ворогознавство: дерево знань про техніки, що відкриває нові контрходи</li>
-            <li>Командний режим: два гравці, одна ситуація, порівняння рішень</li>
-            <li>Аналітику для тренера і регіональні профілі стійкості</li>
+            ${t('fullVersionList').map(li=>'<li>'+li+'</li>').join('')}
           </ul>
-          <h3 style="margin-top:14px">АДДОНИ В РОЗРОБЦІ</h3>
+          <h3 style="margin-top:14px">${t('addonsInProgress')}</h3>
           <ul>
-            <li>МОБІЛЬНІ ГРУПИ: читання аудиторії, побудова виступу. На базі карткової версії</li>
-            <li>МІЖНАРОДНИЙ: дипломатичні сценарії, скептичні аудиторії</li>
-            <li>ЧЕРВОНА КОМАНДА: сконструюй ІПСО сам і зрозумій захист зсередини</li>
+            ${t('addonsList').map(li=>'<li>'+li+'</li>').join('')}
           </ul>
         </div>
-        ${SHOW_FEEDBACK_BTN ? feedbackLink('ЗАЛИШИТИ ФІДБЕК — 2 ХВИЛИНИ') : ''}
-        <button class="btn" onclick="restart()">ЩЕ РАЗ · ІНША РОЛЬ</button>
-        <button class="btn ghost" onclick="restartToModes()">ДО РЕЖИМІВ</button>
-      </div>`);
+        ${SHOW_FEEDBACK_BTN ? feedbackLink(t('feedbackCta')) : ''}
+        <button class="btn" onclick="restart()">${t('againOtherRole')}</button>
+        <button class="btn ghost" onclick="restartToModes()">${t('toModes')}</button>
+      </div>`, !doCrisis);   // вузлова точка 4, якщо кризового проміжного екрана не було
   };
 
   if(doCrisis){
-    setTimeout(()=>setInfl(-10,'Гучне мовчання'), 700);
+    setTimeout(()=>setInfl(-10,t('loudSilenceLabel')), 700);
     setTimeout(doRender, 1500);
   } else doRender();
 }
@@ -1398,17 +1986,17 @@ function bootPack(raw){
   S.role = ROLES[1];                                        // стандартний темп для чесного порівняння
   document.getElementById('topbar').style.display = 'block';
   hud(); SFX.startAmbient();
-  startScenario();
+  startScenario(true);   // pack-режим: свій "вхід у гру" без тайтла/катсцени — вузлова точка
 }
 function brokenPack(){
   packMode = false;
   document.getElementById('topbar').style.display = 'none';
   render(`
     <div style="padding-top:8vh;text-align:center">
-      <div class="eyebrow" style="color:var(--hostile)">ПОШКОДЖЕНИЙ ПАКЕТ</div>
-      <h2>Не вдалось прочитати операцію</h2>
-      <p class="lead" style="max-width:440px;margin:0 auto 20px">Посилання обірване або зібране в несумісній версії. Відкрий звичайну гру й спробуй згенерувати пакет заново.</p>
-      <button class="btn" onclick="goStandard()">ДО ЗВИЧАЙНОЇ ГРИ ▸</button>
+      <div class="eyebrow" style="color:var(--hostile)">${t('brokenPackTitle')}</div>
+      <h2>${t('brokenPackH2')}</h2>
+      <p class="lead" style="max-width:440px;margin:0 auto 20px">${t('brokenPackText')}</p>
+      <button class="btn" onclick="goStandard()">${t('toStandardGame')}</button>
     </div>`);
 }
 function goStandard(){ history.replaceState(null,'',location.pathname); location.reload(); }
@@ -1439,21 +2027,19 @@ function packFinale(){
   const breached = hit < rows.length || !!(S._op && S._op.false>0);
   render(`
     <div class="pvp-report" style="padding-top:3vh;text-align:center">
-      <div class="eyebrow">РОЗБІР ЧУЖОЇ ОПЕРАЦІЇ</div>
-      <h2>ОПЕРАЦІЮ СТВОРИВ ІНШИЙ ГРАВЕЦЬ</h2>
-      <div class="rank ${breached?'low':'gold'}">${breached?'ПРОБИТО':'ВСТОЯВ'}</div>
-      <p class="lead" style="max-width:440px;margin:0 auto 18px">${breached
-        ? 'Хоч один закладений наратив пройшов повз тебе. Автор влучив у твою сліпу зону.'
-        : 'Ти розкрив кожен наратив, який автор заклав. Атака не пройшла.'}</p>
+      <div class="eyebrow">${t('pvpTitle')}</div>
+      <h2>${t('pvpH2')}</h2>
+      <div class="rank ${breached?'low':'gold'}">${breached?t('pvpBreached'):t('pvpHeld')}</div>
+      <p class="lead" style="max-width:440px;margin:0 auto 18px">${breached ? t('pvpBreachedText') : t('pvpHeldText')}</p>
       <div class="card" style="text-align:left">
-        <div class="narr-label" style="margin-bottom:10px">ТЕХНІКИ · ЗАКЛАВ АВТОР vs РОЗКРИВ ТИ</div>
-        ${rows.map(r=>`<div class="stat"><span>${r.tech}</span><span class="v ${r.found?'good':'bad'}">${r.found?'✓ розкрито':'✗ пропущено'}</span></div>`).join('')}
-        <div class="stat"><span>Аналіз техніки</span><span class="v ${S._techOK?'good':'bad'}">${S._techOK?'✓ вірно':'✗ хибно'}</span></div>
-        <div class="stat"><span>Фінальна стійкість</span><span class="v">${S.infl} / 100</span></div>
+        <div class="narr-label" style="margin-bottom:10px">${t('pvpTechLabel')}</div>
+        ${rows.map(r=>`<div class="stat"><span>${r.tech}</span><span class="v ${r.found?'good':'bad'}">${r.found?t('pvpFoundMark'):t('pvpMissedMark')}</span></div>`).join('')}
+        <div class="stat"><span>${t('pvpTechAnalysis')}</span><span class="v ${S._techOK?'good':'bad'}">${S._techOK?t('correctMark'):t('wrongMark')}</span></div>
+        <div class="stat"><span>${t('pvpFinalResilience')}</span><span class="v">${S.infl} / 100</span></div>
       </div>
-      ${ENABLE_CREATOR ? `<button class="btn" onclick="location.href='creator.html'">СТВОРИТИ СВОЮ ОПЕРАЦІЮ ▸</button>` : ''}
-      <button class="btn ghost" onclick="goStandard()">ДО ЗВИЧАЙНОЇ ГРИ</button>
-    </div>`);
+      ${ENABLE_CREATOR ? `<button class="btn" onclick="location.href='creator.html'">${t('createYourOp')}</button>` : ''}
+      <button class="btn ghost" onclick="goStandard()">${t('toStandardGameNoArrow')}</button>
+    </div>`, true);   // pack-режим: вузлова точка "фінальний звіт"
   playPvpReport(document.querySelector('.pvp-report'));
 }
 
@@ -1475,8 +2061,14 @@ window.ipsoIntroDone = function(){
 
 hud();
 setInfl(0);
+document.documentElement.lang = LANG;
 // Глобальна плаваюча кнопка фідбеку: створюється раз, живе поза #app, переживає всі render().
-if(SHOW_FEEDBACK_BTN) document.body.insertAdjacentHTML('beforeend', '<a id="feedbackFab" class="feedback-fab btn--feedback" href="'+FEEDBACK_URL+'" target="_blank" rel="noopener" title="Залишити фідбек">ФІДБЕК</a>');
+if(SHOW_FEEDBACK_BTN) document.body.insertAdjacentHTML('beforeend', '<a id="feedbackFab" class="feedback-fab btn--feedback" href="'+FEEDBACK_URL+'" target="_blank" rel="noopener" title="'+t('leaveFeedback')+'">'+t('feedbackFabLabel')+'</a>');
+// Перемикач мови (задача «переклад на англійську»): плаваюча кнопка поза #app,
+// видима одразу з першого екрана (не чекає topbar/вибору ролі), переживає всі render().
+document.body.insertAdjacentHTML('beforeend', '<button id="langFab" class="lang-fab" onclick="toggleLang()"></button>');
+syncStaticLangUI();
+updateLangFab();
 // Захист: якщо #ipso-boot з якоїсь причини не встав у розмітку, подія
 // 'ipso:intro-done' ніколи не прийде — не лишати гру видимо застряглою.
 if(document.getElementById('ipso-boot')){
