@@ -1,0 +1,27 @@
+Copyright (c) 2026 Cultural Forces (ГО «Культурний Десант»). All rights reserved.
+
+This repository, including its source code, scenario content, texts, artwork,
+sound and documentation, is published for review and demonstration purposes.
+
+Permission is NOT granted to copy, modify, distribute, sublicense, sell or
+otherwise use any part of this work without prior written permission of
+Cultural Forces, except for viewing the source and running the game locally
+for evaluation.
+
+THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+Contact: Cultural Forces, https://ipsomnia.com/
+
+----------------------------------------------------------------------
+Third-party components are distributed under their own licenses:
+
+* qrcode.js — QR Code Generator, Copyright (c) 2009 Kazuhiko Arase,
+  MIT License (https://github.com/kazuhikoarase/qrcode-generator).
+* Inter — Copyright (c) 2016 The Inter Project Authors,
+  SIL Open Font License 1.1.
+* JetBrains Mono — Copyright (c) 2020 The JetBrains Mono Project Authors,
+  SIL Open Font License 1.1.
+* Press Start 2P — Copyright (c) 2012 The Press Start 2P Project Authors,
+  SIL Open Font License 1.1.
