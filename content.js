@@ -1,14 +1,97 @@
 /* =====================================================================
-   КОНТЕНТ-ПАК. Нова ситуація = новий об'єкт. Двигун не чіпаємо.
+   IPSOMNIA · CONTENT PACK  (content.js)
+   ---------------------------------------------------------------------
+   EN · Pure data, no logic. Everything the player reads lives here:
+   operations (SCENARIOS), roles, wildcard events, map pins, cutscene
+   dialogue and tutorial hints, each in Ukrainian and English. The engine
+   (engine.js) only reads these arrays, so adding a new operation means
+   appending one object to SCENARIOS_UK and SCENARIOS_EN. The order of
+   SCENARIOS is the difficulty order: the campaign map unlocks them in
+   waves of three (see WAVE_SIZE in engine.js). The last object with
+   boss:true is the final operation.
+   Run `node validate.js` before deploying: it checks UK/EN parity and
+   content rules.
+   ---------------------------------------------------------------------
+   UA · Лише дані, без логіки. Нова ситуація = новий об'єкт у SCENARIOS_UK
+   та SCENARIOS_EN, двигун при цьому не чіпаємо. Порядок у масиві = порядок
+   складності (мапа відкриває операції хвилями по три). Перед деплоєм:
+   `node validate.js`.
+
+   СХЕМА ОДНІЄЇ ОПЕРАЦІЇ
+   {
+     id:        "blackout",            // стабільний ключ; однаковий у UK/EN, у mapOps і в localStorage прогресу
+     title:     "БЛЕКАУТ",             // заголовок бріфінгу
+     tech:      "Підміна причини",     // назва техніки маніпуляції (іде в профіль вразливості на фіналі)
+     badge:     "ПІДМІНА",             // коротка назва бейджа за правильний аналіз техніки
+     node:      "БЛЕКАУТ",             // підпис у заголовку AAR і в блоці «РОЗКРИТІ НАРАТИВИ»
+     art:       "assets/op_x.png",     // ілюстрація бріфінгу (необов'язково)
+     map:       {x:48, y:28},          // довідкові координати; реальні піни беруться з mapOps нижче
+     international: true,              // необов'язково: позначка «прев'ю міжнародного аддону» в заголовку
+     boss: true, bossTimerCut: 5,      // лише фінальна операція: катсцена, глітч, 3 OSINT-перевірки, -N секунд таймера
+     brief:     "…",                   // текст бріфінгу
+     attack:    -10,                   // стартовий удар по стійкості при відкритті стрічки (× коефіцієнт ролі)
+
+     feed: [                           // ФАЗА 1 · стрічка. Порядок тасується двигуном (крім боса)
+       {
+         a: "⚡ Укренерго",             // автор (назва каналу)
+         t: "…",                       // текст поста
+         m: "09:12",                   // таймстемп; після тасування призначаються зверху вниз у цьому порядку
+         v: "48.1K",                   // стартові перегляди; у грі ростуть у реальному часі
+         h: false,                     // true = ворожий пост
+         tier: "ob" | "sub",           // лише для ворожих: явний (+5 за знайдений) чи тонкий (+8)
+         subtype: "Інсинуація",        // лише для ворожих: ярлик підтипу, показується після фази 2
+         w: "…",                       // лише для чесних: чому це НЕ ІПСО (показується при хибній тривозі та в AAR). Обов'язково
+         flagged: true,                // необов'язково: модерація вже позначила пост як фейк; клік по ньому = хибна тривога
+         osint: {                      // досьє каналу для кнопки 🔍; відсутні поля не рендеряться
+           created, postsMonth, avatar, nameHistory, oldPosts:[…], repostedBy
+         }
+       }
+     ],
+     mutation: {…пост…},               // лише у фіналі: додається до стрічки, якщо «Блекаут» провалено
+
+     subQuestion: { q, opts:[{n, d, ok, e}] },   // необов'язково: ФАЗА 1б, уточнення про конкретне джерело
+
+     techniques: {                     // ФАЗА 2 · яка техніка. Рівно одна опція з ok:true, решта дистрактори
+       q: "…",
+       opts: [ {n:"назва", d:"опис", ok:true|false, e:"пояснення (навчальне ядро, не скорочувати)"} ]
+     },
+
+     audienceQ: "…", audiences: [      // необов'язково: ФАЗА 3 · кому відповідати. Кожна аудиторія несе свої counters
+       {n, d, counters:{q, opts:[…]}}
+     ],
+     counters: {                       // ФАЗА 4 · контрхід (якщо нема audiences). Рівно одна опція з best:true
+       q: "…",
+       opts: [ {
+         n, d, e,
+         fx: 12,                       // ефект на стійкість: best +12, середній +2..5, шкідливий -12
+         best: true,                   // оптимальний хід (+3 довіри)
+         rep: -15,                     // необов'язково: прямий удар по довірі
+         cons: true                    // необов'язково: «гучне мовчання»; двічі за кампанію = криза на фіналі
+       } ]
+     },
+
+     debrief: "…",                     // підсумок уроку в AAR
+     cliff:   "…"                      // кліфхенгер «ТИМ ЧАСОМ» наприкінці AAR (може бути порожнім)
+   }
+
+   ПРАВИЛА КОНТЕНТУ
+   - Жива українська, без довгих тире в текстах постів і відповідей.
+   - Тонкі наративи не брешуть прямо, вони інсинуюють.
+   - Пастки (чесні, але емоційні пости) обов'язково мають пояснення `w`.
+   - Усі суб'єкти фіктивні, без реальних імен приватних осіб.
+   ===================================================================== */
+
+/* =====================================================================
+   ОПЕРАЦІЇ · УКРАЇНСЬКА
    ===================================================================== */
 const SCENARIOS_UK = [
-/* =====================================================================
-   ОПЕРАЦІЯ 1 «БЛЕКАУТ» — v2. Drop-in заміна об'єкта id:"blackout"
-   у SCENARIOS. Схема 1:1 з оригіналом, двигун не чіпати.
-   Принципи v2: дистрактори фальсифікуються стрічкою (нуль «ти майже
-   правий»), один афоризм на блок, якір запам'ятовування = тест трьох
-   питань (у правильній відповіді + в дебрифі), OSINT стиснуто під мобілку.
-   ===================================================================== */
+/* ---------------------------------------------------------------------
+   «БЛЕКАУТ» · підміна причини. Перша і найлегша операція, на ній іде
+   туторіал. Принципи написання, що задають тон усім іншим: дистрактори
+   спростовуються самою стрічкою (нуль «ти майже правий»), один афоризм на
+   блок, якір запам'ятовування = тест трьох питань (повторюється у
+   правильній відповіді та в дебрифі), OSINT стиснуто під мобільний екран.
+   --------------------------------------------------------------------- */
 {
   id:"blackout", title:"БЛЕКАУТ", tech:"Підміна причини", badge:"ПІДМІНА", node:"БЛЕКАУТ", art:"assets/op_blackout.png", map:{x:48,y:28},
   brief:"Третя доба відключень після удару по енергетиці. Люди сидять у темряві без відповіді на питання «чому». Цю відповідь їм зараз хтось дасть — або ти, або ворог.",
@@ -52,6 +135,11 @@ const SCENARIOS_UK = [
   debrief:"Підміна причини — це переклеєна етикетка на твоєму болю: біль справжній, винний підроблений. Працює в парі: гучний вкид збирає натовп, «обережний експерт» добирає тих, хто вкидам не вірить — він і є головна зброя. Твій тест у реальній стрічці, три питання: біль реальний? причину можна перевірити? кому вигідно, щоб я повірив саме в це?",
   cliff:"Канал «Правда без цензури 18+» тихо видалив пост про експорт і змінив назву на Insider UA. 112K підписників нікуди не ділись."
 },
+/* ---------------------------------------------------------------------
+   «ПАДІННЯ УЛАМКІВ» · дзеркальне звинувачення. Має фазу вибору аудиторії
+   (audiences) і пост, уже позначений модерацією (flagged): клік по ньому
+   рахується як хибна тривога, бо ворога вже знешкоджено.
+   --------------------------------------------------------------------- */
 {
   id:"shahed", title:"ПАДІННЯ УЛАМКІВ", tech:"Дзеркальне звинувачення", badge:"ДЗЕРКАЛО", node:"УЛАМКИ", art:"assets/op_shahed.png", map:{x:72,y:30},
   brief:"Нічна атака. Уламки збитого БпЛА впали на житловий будинок, є руйнування. Зранку версія ворога вже гуляє чатами. Годинник цокає.",
@@ -98,6 +186,10 @@ const SCENARIOS_UK = [
   debrief:"«Це ваше ППО» вмикається після кожної атаки з жертвами, автоматично. Запам'ятай тонку версію: «нічого не стверджую, просто спостереження». Інсинуація найживучіша, бо її не можна спростувати як брехню. Контрхід: швидкість, фактаж і рамка «нема атаки, нема уламків».",
   cliff:"«Мирний Погляд» запустив англомовне дзеркало. Перекладають швидше, ніж встигаєш читати."
 },
+/* ---------------------------------------------------------------------
+   «ПАЛИВНИЙ ФРОНТ» · фальшива симетрія. Операція про те, що чесний
+   побутовий пост про чергу не є «другою стороною» симетрії.
+   --------------------------------------------------------------------- */
 {
   id:"azs", title:"ПАЛИВНИЙ ФРОНТ", tech:"Фальшива симетрія", badge:"СИМЕТРІЯ", node:"ПАЛИВО", art:"assets/op_azs.png", map:{x:57,y:58},
   brief:"Удари по НПЗ РФ працюють: у противника дефіцит пального. У відповідь РФ б'є по українських АЗС. Атака розгортається одразу на дві аудиторії.",
@@ -158,6 +250,10 @@ const SCENARIOS_UK = [
   debrief:"Один інфопривід, різні наративи під різні аудиторії: паніка всередину, втома від ескалації назовні. Обидва ведуть до одного висновку: зупинити те, що працює. Тому і протидія має бути адресною. Це логіка аддонів Іпсомнії.",
   cliff:"У польському сегменті з'явився новий канал. Шрифт і подача до болю знайомі: Prawda Bez Cenzury."
 },
+/* ---------------------------------------------------------------------
+   «СУСІДСЬКИЙ ФРОНТ» · паразитування на конфлікті. Прев'ю міжнародного
+   аддону (international:true): польська аудиторія, двомовна стрічка.
+   --------------------------------------------------------------------- */
 {
   id:"poland", title:"СУСІДСЬКИЙ ФРОНТ", tech:"Паразитування на конфлікті", badge:"ПАРАЗИТ", node:"КОРДОН", international:true, art:"assets/op_poland.png", map:{x:8,y:36},
   brief:"Польські фермери блокують пункти пропуску. Вимоги економічні і цілком реальні. Саме на такому ґрунті ворожі наративи ростуть найкраще, бо конфлікт справжній.",
@@ -201,6 +297,10 @@ const SCENARIOS_UK = [
   debrief:"Найнебезпечніші наративи ростуть не на брехні, а на реальних конфліктах. Правило: спершу відділи справжню суперечку від накачаного шару. Першу визнай, другий знищ. Це прев'ю міжнародного аддону: тут у кожної ситуації два стільці, дипломатичний та інформаційний.",
   cliff:"Вдома тим часом закипає інша історія: велике медіа випустило розслідування про смерті новобранців у навчальних центрах штурмового полку. І в цю тему вже заходять знайомі гравці."
 },
+/* ---------------------------------------------------------------------
+   ОПЕРАЦІЯ «ГРАНІТ» · розгойдування з двох боків: один і той самий
+   інфопривід качають і «зрадою», і «перемогою».
+   --------------------------------------------------------------------- */
 {
   id:"granit", title:"ОПЕРАЦІЯ «ГРАНІТ»", tech:"Розгойдування з двох боків", badge:"РОЗГОЙДУВАННЯ", node:"ГРАНІТ", art:"assets/op_granit.png", map:{x:26,y:48},
   brief:"Видання «Прожектор» опублікувало розслідування про небойові смерті новобранців у навчальних центрах штурмового полку «Граніт»: десятки свідків, документи, важкі деталі. ДБР відкрило провадження, командира відсторонено на час перевірки. Стрічка розірвана навпіл, і обидві половини кричать. Твоя зміна почалась годину тому.",
@@ -247,6 +347,11 @@ const SCENARIOS_UK = [
   debrief:"Розгойдування з двох боків — найдорожча схема ворога: два конвеєри, протилежні гасла, одна мета — розірвати зв'язку суспільство—армія—медіа. Впізнається не за змістом, а за інфраструктурою: протилежні тези, спільні агрегатори. Контрхід — відмовитись малювати фронт: підтримати слідство, відділити полк від фігурантів, захистити право журналістики працювати. І пам'ятай про пости 1 і 2: незручна правда — не ворог, а погана комунікація своїх — не наратив.",
   cliff:"Insider UA почав тизерити «документи про закупівлі». Почерк упізнаєш одразу. Схоже, готують щось велике."
 },
+/* ---------------------------------------------------------------------
+   «ВИШНЕВЕ» · підміна причини + дзеркальне звинувачення. Єдина операція
+   з підпитанням (subQuestion) про роль конкретного джерела. Досьє OSINT тут
+   навмисно розріджені: не всі поля заповнені.
+   --------------------------------------------------------------------- */
 {
   id:"vyshneve", title:"ВИШНЕВЕ", tech:"Підміна причини / Дзеркальне звинувачення", badge:"ВЕРИФІКАЦІЯ", node:"ВИШНЕВЕ", art:"assets/op_vyshneve.png", map:{x:56,y:23},
   brief:"Після масованого російського обстрілу Києва та Київської області у ніч на 6 липня 2026 року в соцмережах і анонімних Telegram-каналах почали розповсюджувати повідомлення про те, що на атакованих об'єктах у місті Вишневе нібито зберігалися «натовські снаряди зі збідненим ураном» та касетні боєприпаси.",
@@ -305,10 +410,11 @@ const SCENARIOS_UK = [
   debrief:"Після обстрілу Вишневого ворог запустив фейк про детонацію «натівських снарядів з ураном» біля житлових будинків. Ця маніпуляція діє через тригер екологічного страху, намагаючись перекласти провину за руйнування з агресора на українську владу. Застосувавши «Рефреймінг + Нормативну верифікацію» ми миттєво повертаємо фокус на воєнний злочин Росії та повністю руйнуємо брехню чітким посиланням на заборону розміщення таких складів за розпорядженням Головнокомандувача. Тест трьох питань і тут працює: біль реальний? причину можна перевірити? кому вигідно? Новий анкор цієї операції — «4 маркери досьє»: (1) дата створення / видалення-відновлення профілю; (2) зміна назви акаунта; (3) хто репостить; (4) чи збігається тон старих постів із поточним. Перед репостом гарячої новини — відкрий профіль автора. 30 секунд досьє дешевші за годину спростувань.",
   cliff:""
 },
+/* ---------------------------------------------------------------------
+   «СИХІВ» · емоційне масштабування. Реальна подія як типаж ситуації,
+   без вигаданих фактів, поданих як реальні.
+   --------------------------------------------------------------------- */
 {
-  /* Брифінг «Сихів» (задача, розділ 8, TODO(Роми) #3): розбивка «старих постів» на
-     3 елементи звірена з брифом як він є — оригінальний docx не надано, тож
-     точність структури спирається на форматування, вже надане в брифі. */
   id:"sykhiv", title:"СИХІВ", tech:"Емоційне масштабування", badge:"МАСШТАБУВАННЯ", node:"СИХІВ", art:"assets/op_sykhiv.png", map:{x:15,y:40},
   brief:"8 липня у Львові на Сихові почалась сутичка між місцевими жителями і працівниками ТЦК. Відомо, що люди заблокували службовий мікроавтобус ТЦК, пошкодили його та зрештою перекинули. Відео зіткнень уже шириться мережею.",
   attack:-12,
@@ -358,8 +464,11 @@ const SCENARIOS_UK = [
   debrief:"Під час сутичок на Сихові ворог застосував «Емоційне масштабування», щоб видати локальний конфлікт за початок «загальнонаціонального бунту». Ця маніпуляція діє через тригер суспільної втоми та страху перед мобілізацією, намагаючись розколоти громадянське суспільство та армію. Застосувавши «Швидкість і фактаж», ми миттєво перехоплюємо інформаційну ініціативу доказовим відео з бодікамер, ізолюємо провокаторів правовим шляхом і руйнуємо ворожий міф через авторитетних для суспільства лідерів думок. Тест трьох питань і тут працює: біль реальний? причину можна перевірити? кому вигідно?",
   cliff:""
 },
+/* ---------------------------------------------------------------------
+   «ХВИЛЯ МІГРАНТІВ» · експлуатація суспільних страхів.
+   --------------------------------------------------------------------- */
 {
-  id:"migrants", title:"ХВИЛЯ МІГРАНТІВ", tech:"Експлуатація суспільних страхів", badge:"СТРАХИ", node:"ХВИЛЯ", art:"assets/op_sykhiv.png", /* TODO(Рома): замінити на assets/op_migrants.png, коли асет буде готовий */ map:{x:11,y:52},
+  id:"migrants", title:"ХВИЛЯ МІГРАНТІВ", tech:"Експлуатація суспільних страхів", badge:"СТРАХИ", node:"ХВИЛЯ", art:"assets/op_sykhiv.png", /* TODO(art): замінити на assets/op_migrants.png, коли асет буде готовий */ map:{x:11,y:52},
   brief:"На тлі обговорень законопроєкту № 14211 про спрощення отримання дозволу на проживання і працевлаштування іноземців в Україні, а також новини про Хустську меблеву фабрику, яка хоче взяти на роботу 160 громадян Бангладешу — у Києві та в інших містах пройшли гучні мітинги молоді, яка виступала проти «етнічного заміщення українців».",
   attack:-14,
   feed:[
@@ -406,11 +515,11 @@ const SCENARIOS_UK = [
 },
 /* =====================================================================
    ОПЕРАЦІЯ «ВТОМЛЕНА ЄВРОПА» — зміщення акценту.
-   Джерело: бриф Роми (docx «місія_Втомлена_Європа»). Усі суб'єкти
+   Джерело: бриф геймдизайну (docx «місія_Втомлена_Європа»). Усі суб'єкти
    фіктивні; заяви подані на рівні посад і країн, без реальних імен.
    ===================================================================== */
 {
-  id:"eurofatigue", title:"ВТОМЛЕНА ЄВРОПА", tech:"Зміщення акценту", badge:"АКЦЕНТ", node:"ЄВРОПА", international:true, art:"assets/op_poland.png", /* TODO(Рома): замінити на assets/op_eurofatigue.png, коли асет буде готовий */ map:{x:5,y:20},
+  id:"eurofatigue", title:"ВТОМЛЕНА ЄВРОПА", tech:"Зміщення акценту", badge:"АКЦЕНТ", node:"ЄВРОПА", international:true, art:"assets/op_poland.png", /* TODO(art): замінити на assets/op_eurofatigue.png, коли асет буде готовий */ map:{x:5,y:20},
   brief:"Тиждень саміту НАТО. Кожна столиця Європи сказала про допомогу Україні щось своє: хтось вичерпав склади, хтось вкладається у власну армію, хтось не давав зброї ніколи. Жодної з цих заяв ворог не вигадав. Він просто складає їх в один рядок і підписує: «Європа готується вас здати».",
   attack:-14,
   feed:[
@@ -459,10 +568,10 @@ const SCENARIOS_UK = [
 },
 /* =====================================================================
    ОПЕРАЦІЯ «ВИБОРИ» — подвійна делегітимізація.
-   Джерело: бриф Роми (docx «Операція_Вибори_в_Україні»).
+   Джерело: бриф геймдизайну (docx «Операція_Вибори_в_Україні»).
    ===================================================================== */
 {
-  id:"elections", title:"ВИБОРИ", tech:"Подвійна делегітимізація", badge:"ЛЕГІТИМНІСТЬ", node:"ВИБОРИ", art:"assets/op_granit.png", /* TODO(Рома): замінити на assets/op_elections.png, коли асет буде готовий */ map:{x:38,y:45},
+  id:"elections", title:"ВИБОРИ", tech:"Подвійна делегітимізація", badge:"ЛЕГІТИМНІСТЬ", node:"ВИБОРИ", art:"assets/op_granit.png", /* TODO(art): замінити на assets/op_elections.png, коли асет буде готовий */ map:{x:38,y:45},
   brief:"Про вибори говорять усі: терміни, безпека, дільниці за кордоном, голосування військових і ВПО, деокуповані території. Дати немає. Закону немає. Відповідей немає. Саме в цей вакуум ворог і заходить — і йому не потрібно, щоб ти програв вибори. Йому достатньо, щоб ти не зміг їх виграти переконливо.",
   attack:-14,
   feed:[
@@ -512,11 +621,11 @@ const SCENARIOS_UK = [
 },
 /* =====================================================================
    ОПЕРАЦІЯ «DEEP-STRIKE» — хибна симетрія сторін.
-   Джерело: бриф Роми (docx «Операція_Deep-Strike»). Тип «Підсилювач»
+   Джерело: бриф геймдизайну (docx «Операція_Deep-Strike»). Тип «Підсилювач»
    з брифу лягає на існуючий tier:"sub" — окремого поля не заводимо.
    ===================================================================== */
 {
-  id:"deep", title:"DEEP-STRIKE", tech:"Хибна симетрія сторін", badge:"ТОТОЖНІСТЬ", node:"ГЛИБИНА", international:true, art:"assets/op_shahed.png", /* TODO(Рома): замінити на assets/op_deep.png, коли асет буде готовий */ map:{x:92,y:20},
+  id:"deep", title:"DEEP-STRIKE", tech:"Хибна симетрія сторін", badge:"ТОТОЖНІСТЬ", node:"ГЛИБИНА", international:true, art:"assets/op_shahed.png", /* TODO(art): замінити на assets/op_deep.png, коли асет буде готовий */ map:{x:92,y:20},
   brief:"Удари вглиб працюють: горять НПЗ, нафтобази, насосні станції, аеродроми. Під час окремих атак гинуть і цивільні — це теж правда, і її не сховати. Ворог більше не заперечує наші удари. Він їх вітає: кожна цивільна жертва в Росії йде йому в доказ, що сторони однакові. Найважче в цій операції — не сплутати правду з наративом.",
   attack:-16,
   feed:[
@@ -564,12 +673,12 @@ const SCENARIOS_UK = [
 },
 /* =====================================================================
    ОПЕРАЦІЯ «БРУДНА БІМБА» — демонізація для виправдання агресії.
-   Джерело: бриф Роми (docx «операція_Брудна_бімба»). Три чисті пости
+   Джерело: бриф геймдизайну (docx «операція_Брудна_бімба»). Три чисті пости
    (МАГАТЕ, фізик, батьківський чат) додані понад бриф: без них у
    стрічці нема хибних тривог і фаза 1 вироджується.
    ===================================================================== */
 {
-  id:"dirty_bomb", title:"БРУДНА БІМБА", tech:"Демонізація для виправдання агресії", badge:"ДЕМОНІЗАЦІЯ", node:"БІМБА", art:"assets/op_boss.png", /* TODO(Рома): замінити на assets/op_dirty_bomb.png, коли асет буде готовий */ map:{x:66,y:60},
+  id:"dirty_bomb", title:"БРУДНА БІМБА", tech:"Демонізація для виправдання агресії", badge:"ДЕМОНІЗАЦІЯ", node:"БІМБА", art:"assets/op_boss.png", /* TODO(art): замінити на assets/op_dirty_bomb.png, коли асет буде готовий */ map:{x:66,y:60},
   brief:"У мережі одночасно живуть кілька несумісних версій: Україна нібито готує «брудну бомбу» для удару по Росії; Україна нібито готує вибух у себе, щоб звинуватити Росію; технології нібито передають партнери. Версії суперечать одна одній і поширюються разом. Це не збій. Це і є конструкція.",
   attack:-16,
   feed:[
@@ -615,6 +724,11 @@ const SCENARIOS_UK = [
   debrief:"Деякі фейки настільки кричущі, що спершу викликають лише сміх. Небезпека не в окремій версії, а в їхній кількості: коли десятки джерел пропонують десятки несумісних пояснень, у голові лишається не жодне з них, а загальне відчуття, що «щось там таки є». Так саме існування атомних станцій починає читатись як доказ зброї. Ознака конструкції — деталі різні, висновок один. І окремо: страх сусідки не робить її ворогом. Мосюк і чат батьків бояться однаково, але один стверджує неперевірену конкретику, а другий питає, чи це правда. Перевіряй першоджерело, шукай докази і завжди питай: кому потрібно, щоб я в це повірив?",
   cliff:""
 },
+/* ---------------------------------------------------------------------
+   ОПЕРАЦІЯ «ЧАПЛЯ» · БОС · відмивання наративу. Стрічка не тасується,
+   бо порядок постів несе сюжет (вкид → «експерт» → медіа). Поле mutation:
+   додатковий ворожий пост, якщо «Блекаут» був провалений.
+   --------------------------------------------------------------------- */
 {
   id:"laundering", title:"ОПЕРАЦІЯ «ЧАПЛЯ»", tech:"Відмивання наративу", badge:"ВІДМИВАННЯ", node:"☠ БОС", boss:true, bossTimerCut:5, art:"assets/op_boss.png", map:{x:82,y:46},
   brief:"Фінальна операція. Компанія «Кремінь» — виробник далекобійної ракети «Чапля», головної надії ударів углиб. Антикорупційне бюро веде провадження за фактом щодо закупівель компонентів: підозр нікому не вручено, робота триває. Обіцяне масове виробництво публічно не підтверджене. Сьогодні вночі Insider UA випустив «ексклюзив». Усі дійові особи тобі знайомі. Простеж повний ланцюг.",
@@ -672,7 +786,16 @@ const SCENARIOS_UK = [
   cliff:""
 }
 ];
+
+/* =====================================================================
+   OPERATIONS · ENGLISH
+   Same ids, same structure and same numbers (attack, fx, rep) as the
+   Ukrainian pack; only the texts differ. validate.js enforces parity.
+   ===================================================================== */
 const SCENARIOS_EN = [
+/* ---------------------------------------------------------------------
+   «BLACKOUT» · cause swap. First and easiest operation; the tutorial runs on it.
+   --------------------------------------------------------------------- */
 {
   id:"blackout", title:"BLACKOUT", tech:"Cause Swap", badge:"SWAP", node:"BLACKOUT", art:"assets/op_blackout.png", map:{x:48,y:28},
   brief:"Third day of blackouts after the strike on the power grid. People are sitting in the dark with no answer to “why”. Someone's about to give them that answer — you, or the enemy.",
@@ -716,6 +839,10 @@ const SCENARIOS_EN = [
   debrief:"Cause Swap is a relabeled sticker on your pain: the pain is real, the culprit is fake. It works as a pair: a loud leak pulls in the crowd, a “cautious expert” picks up the ones who don't believe leaks — and that expert is the real weapon. Your test for the real feed, three questions: Is the pain real? Can the cause be verified? Who benefits from me believing exactly this?",
   cliff:"The channel “Truth Uncensored 18+” quietly deleted the export post and renamed itself Insider UA. All 112K subscribers stuck around."
 },
+/* ---------------------------------------------------------------------
+   «DEBRIS FALL» · mirror accusation. Has an audience-choice phase and a
+   moderation-flagged post (clicking it counts as a false alarm).
+   --------------------------------------------------------------------- */
 {
   id:"shahed", title:"DEBRIS FALL", tech:"Mirror Accusation", badge:"MIRROR", node:"DEBRIS", art:"assets/op_shahed.png", map:{x:72,y:30},
   brief:"A night attack. Debris from a downed drone hit a residential building — there's damage. By morning, the enemy's version is already spreading through the chats. The clock is ticking.",
@@ -763,6 +890,9 @@ const SCENARIOS_EN = [
   cliff:"“Peaceful Outlook” launched an English-language mirror. They're translating faster than you can read."
 }
 ,
+/* ---------------------------------------------------------------------
+   «FUEL FRONT» · false symmetry.
+   --------------------------------------------------------------------- */
 {
   id:"azs", title:"FUEL FRONT", tech:"False Symmetry", badge:"SYMMETRY", node:"FUEL", art:"assets/op_azs.png", map:{x:57,y:58},
   brief:"Strikes on Russian refineries are working: the enemy has a fuel shortage. In response, Russia is hitting Ukrainian gas stations. The attack targets two audiences at once.",
@@ -823,6 +953,9 @@ const SCENARIOS_EN = [
   debrief:"One news hook, different narratives for different audiences: panic aimed inward, escalation fatigue aimed outward. Both lead to the same conclusion — stop what's working. So the counter has to be targeted too. This is the logic behind IPSOMNIA's add-ons.",
   cliff:"A new channel has appeared in the Polish segment. The font and style are painfully familiar: Prawda Bez Cenzury."
 },
+/* ---------------------------------------------------------------------
+   «NEIGHBOR FRONT» · parasitizing the conflict. International add-on preview.
+   --------------------------------------------------------------------- */
 {
   id:"poland", title:"NEIGHBOR FRONT", tech:"Parasitizing the Conflict", badge:"PARASITE", node:"BORDER", international:true, art:"assets/op_poland.png", map:{x:8,y:36},
   brief:"Polish farmers are blocking border crossings. Their demands are economic and entirely real. This is exactly the soil where hostile narratives grow best, because the conflict is genuine.",
@@ -867,6 +1000,9 @@ const SCENARIOS_EN = [
   cliff:"Back home, another story is boiling over meanwhile: a major outlet has published an investigation into recruit deaths at an assault regiment's training centers. And familiar players are already moving in on the topic."
 }
 ,
+/* ---------------------------------------------------------------------
+   OPERATION «GRANITE» · rocking from both sides.
+   --------------------------------------------------------------------- */
 {
   id:"granit", title:"OPERATION “GRANITE”", tech:"Rocking from Both Sides", badge:"ROCKING", node:"GRANITE", art:"assets/op_granit.png", map:{x:26,y:48},
   brief:"The outlet Spotlight published an investigation into non-combat deaths of recruits at training centers of the “Granite” assault regiment: dozens of witnesses, documents, grim details. The State Bureau of Investigation opened a case, the commander was suspended pending review. The feed has split in two, and both halves are screaming. Your shift started an hour ago.",
@@ -914,6 +1050,10 @@ const SCENARIOS_EN = [
   cliff:"Insider UA has started teasing “procurement documents.” You'd recognize the handwriting anywhere. Looks like they're building up to something big."
 }
 ,
+/* ---------------------------------------------------------------------
+   «VYSHNEVE» · cause swap + mirror accusation. The only operation with a
+   subQuestion; OSINT dossiers are intentionally sparse.
+   --------------------------------------------------------------------- */
 {
   id:"vyshneve", title:"VYSHNEVE", tech:"Cause Swap / Mirror Accusation", badge:"VERIFICATION", node:"VYSHNEVE", art:"assets/op_vyshneve.png", map:{x:56,y:23},
   brief:"After a massive Russian strike on Kyiv and Kyiv Oblast on the night of July 6, 2026, social media and anonymous Telegram channels began spreading claims that the targeted site in the town of Vyshneve had allegedly been storing “NATO depleted-uranium shells” and cluster munitions.",
@@ -973,6 +1113,9 @@ const SCENARIOS_EN = [
   cliff:""
 }
 ,
+/* ---------------------------------------------------------------------
+   «SYKHIV» · emotional amplification.
+   --------------------------------------------------------------------- */
 {
   id:"sykhiv", title:"SYKHIV", tech:"Emotional Amplification", badge:"AMPLIFICATION", node:"SYKHIV", art:"assets/op_sykhiv.png", map:{x:15,y:40},
   brief:"On July 8, a clash broke out in Lviv's Sykhiv district between local residents and TCC staff. Residents reportedly blocked a TCC service minibus, damaged it, and eventually flipped it over. Video of the clash is already spreading online.",
@@ -1024,8 +1167,11 @@ const SCENARIOS_EN = [
   cliff:""
 }
 ,
+/* ---------------------------------------------------------------------
+   «MIGRANT WAVE» · exploitation of public fears.
+   --------------------------------------------------------------------- */
 {
-  id:"migrants", title:"MIGRANT WAVE", tech:"Exploitation of Public Fears", badge:"FEARS", node:"WAVE", art:"assets/op_sykhiv.png", /* TODO(Roma): replace with assets/op_migrants.png once the asset is ready */ map:{x:11,y:52},
+  id:"migrants", title:"MIGRANT WAVE", tech:"Exploitation of Public Fears", badge:"FEARS", node:"WAVE", art:"assets/op_sykhiv.png", /* TODO(art): replace with assets/op_migrants.png once the asset is ready */ map:{x:11,y:52},
   brief:"Amid debate over draft law No. 14211, which would simplify residence and work permits for foreigners in Ukraine, and news that a furniture factory in Khust wants to hire 160 Bangladeshi nationals — loud rallies broke out among young people in Kyiv and other cities, protesting against the “ethnic replacement of Ukrainians.”",
   attack:-14,
   feed:[
@@ -1073,11 +1219,11 @@ const SCENARIOS_EN = [
 ,
 /* =====================================================================
    OPERATION «TIRED EUROPE» — Accent Shift.
-   Source: Roma's brief (docx). All actors fictional; statements given at
+   Source: the game-design brief (docx). All actors fictional; statements given at
    the level of offices and countries, no real private names.
    ===================================================================== */
 {
-  id:"eurofatigue", title:"TIRED EUROPE", tech:"Accent Shift", badge:"ACCENT", node:"EUROPE", international:true, art:"assets/op_poland.png", /* TODO(Roma): replace with assets/op_eurofatigue.png once the asset is ready */ map:{x:5,y:20},
+  id:"eurofatigue", title:"TIRED EUROPE", tech:"Accent Shift", badge:"ACCENT", node:"EUROPE", international:true, art:"assets/op_poland.png", /* TODO(art): replace with assets/op_eurofatigue.png once the asset is ready */ map:{x:5,y:20},
   brief:"NATO summit week. Every European capital said something of its own about aid to Ukraine: one has emptied its depots, one is investing in its own army, one never sent weapons at all. The enemy invented none of these statements. He simply lines them up in a row and captions it: «Europe is preparing to hand you over».",
   attack:-14,
   feed:[
@@ -1126,10 +1272,10 @@ const SCENARIOS_EN = [
 },
 /* =====================================================================
    OPERATION «ELECTIONS» — Double Delegitimisation.
-   Source: Roma's brief (docx).
+   Source: the game-design brief (docx).
    ===================================================================== */
 {
-  id:"elections", title:"ELECTIONS", tech:"Double Delegitimisation", badge:"LEGITIMACY", node:"ELECTIONS", art:"assets/op_granit.png", /* TODO(Roma): replace with assets/op_elections.png once the asset is ready */ map:{x:38,y:45},
+  id:"elections", title:"ELECTIONS", tech:"Double Delegitimisation", badge:"LEGITIMACY", node:"ELECTIONS", art:"assets/op_granit.png", /* TODO(art): replace with assets/op_elections.png once the asset is ready */ map:{x:38,y:45},
   brief:"Everyone is talking about elections: timing, security, polling stations abroad, votes of soldiers and displaced people, de-occupied territories. There is no date. There is no law. There are no answers. That vacuum is where the enemy walks in — and he does not need you to lose an election. He only needs you unable to win one convincingly.",
   attack:-14,
   feed:[
@@ -1179,11 +1325,11 @@ const SCENARIOS_EN = [
 },
 /* =====================================================================
    OPERATION «DEEP-STRIKE» — False Symmetry of Sides.
-   Source: Roma's brief (docx). The brief's «Amplifier» card type maps
+   Source: the game-design brief (docx). The brief's «Amplifier» card type maps
    onto the existing tier:"sub" — no new field introduced.
    ===================================================================== */
 {
-  id:"deep", title:"DEEP-STRIKE", tech:"False Symmetry of Sides", badge:"EQUIVALENCE", node:"DEEP-STRIKE", international:true, art:"assets/op_shahed.png", /* TODO(Roma): replace with assets/op_deep.png once the asset is ready */ map:{x:92,y:20},
+  id:"deep", title:"DEEP-STRIKE", tech:"False Symmetry of Sides", badge:"EQUIVALENCE", node:"DEEP-STRIKE", international:true, art:"assets/op_shahed.png", /* TODO(art): replace with assets/op_deep.png once the asset is ready */ map:{x:92,y:20},
   brief:"Deep strikes are working: refineries, oil depots, pumping stations and airfields are burning. Civilians die in some of these attacks — that is also true, and it cannot be hidden. The enemy no longer denies our strikes. He celebrates them: every civilian casualty in Russia becomes his proof that the sides are the same. The hardest part of this operation is not confusing the truth with the narrative.",
   attack:-16,
   feed:[
@@ -1231,12 +1377,12 @@ const SCENARIOS_EN = [
 },
 /* =====================================================================
    OPERATION «DIRTY BOMB» — Demonisation to Justify Aggression.
-   Source: Roma's brief (docx). Three clean posts (IAEA, physicist,
+   Source: the game-design brief (docx). Three clean posts (IAEA, physicist,
    parents' chat) were added beyond the brief: without them the feed has
    no false-alarm surface and phase 1 degenerates.
    ===================================================================== */
 {
-  id:"dirty_bomb", title:"DIRTY BOMB", tech:"Demonisation to Justify Aggression", badge:"DEMONISATION", node:"BOMB", art:"assets/op_boss.png", /* TODO(Roma): replace with assets/op_dirty_bomb.png once the asset is ready */ map:{x:66,y:60},
+  id:"dirty_bomb", title:"DIRTY BOMB", tech:"Demonisation to Justify Aggression", badge:"DEMONISATION", node:"BOMB", art:"assets/op_boss.png", /* TODO(art): replace with assets/op_dirty_bomb.png once the asset is ready */ map:{x:66,y:60},
   brief:"Several incompatible versions are circulating at once: Ukraine is supposedly preparing a «dirty bomb» to strike Russia; Ukraine is supposedly preparing a detonation on its own soil to blame Russia; the technology is supposedly coming from partners. The versions contradict each other and spread together. That is not a glitch. That is the design.",
   attack:-16,
   feed:[
@@ -1282,6 +1428,11 @@ const SCENARIOS_EN = [
   debrief:"Some fakes are so blatant that the first reaction is laughter. The danger is not in any one version but in their number: when dozens of sources offer dozens of incompatible explanations, what remains in your head is none of them, only a general sense that «there must be something to it». That is how the mere existence of nuclear power plants starts reading as evidence of a weapon. The mark of the construction: the details differ, the conclusion is one. And separately: a neighbour's fear does not make her an enemy. Mosiuk and the parents' chat are equally afraid, but one asserts unverified specifics and the other asks whether it is true. Check the primary source, look for evidence, and always ask: who needs me to believe this?",
   cliff:""
 },
+/* ---------------------------------------------------------------------
+   OPERATION «CHAPLYA» · BOSS · narrative laundering. Feed order is not
+   shuffled (it carries the plot); `mutation` adds an extra hostile post if
+   BLACKOUT was failed.
+   --------------------------------------------------------------------- */
 {
   id:"laundering", title:"OPERATION “CHAPLYA”", tech:"Narrative Laundering", badge:"LAUNDERING", node:"☠ BOSS", boss:true, bossTimerCut:5, art:"assets/op_boss.png", map:{x:82,y:46},
   brief:"The final operation. Kremin Manufacturing builds the Chaplya, a long-range missile and the country's main hope for deep strikes. The Anti-Corruption Bureau has opened a case over component procurement: no one's been served notice, the case is ongoing. The promised mass production has never been publicly confirmed. Tonight, Insider UA dropped an “exclusive.” Every player in this is one you already know. Trace the whole chain.",
@@ -1340,14 +1491,14 @@ const SCENARIOS_EN = [
 }
 ];
 
-/* ---- Мапа-хаб (секція 1 брифу «Вишневе»): відкрита мапа, скасовує лінійну
-   послідовність/акти. ВСІ операції видимі й доступні одразу, окрім боса —
-   він розблоковується щойно решта id пройдені (перевіряється по цьому
-   списку без урахування самого BOSS_ID). «Блекаут» і «Вишневе» — сусідні
-   піни (обидва Київщина). БОС лишається «Чапля» (виробник озброєння), як і
-   був — bossId навмисно НЕ «vyshneve».
-   TODO(Рома): звірити region-підписи й точні x/y під фінальний фон мапи —
-   тут перенесено координати з попередніх map:{x,y} операцій. */
+/* =====================================================================
+   МАПА КАМПАНІЇ
+   Піни на мапі: id операції, короткий підпис і координати у % від картинки
+   assets/map_ukraine.png. Це розкладка, а не порядок складності: порядок
+   відкриття хвиль двигун бере зі SCENARIOS. Бос (BOSS_ID) відкривається,
+   коли пройдено всі інші id з цього списку.
+   TODO(art): звірити region-підписи й точні x/y під фінальний фон мапи.
+   ===================================================================== */
 const BOSS_ID = "laundering";
 const mapOps_UK = [
   {id:"blackout",   title:"БЛЕКАУТ",          region:"Київщина",          x:48, y:28},
@@ -1356,8 +1507,8 @@ const mapOps_UK = [
   {id:"azs",         title:"ПАЛИВО",           region:"Дніпропетровщина", x:57, y:58},
   {id:"poland",      title:"КОРДОН",           region:"Прикордоння",      x:8,  y:36},
   {id:"granit",      title:"ГРАНІТ",           region:"Схід",             x:26, y:48},
-  {id:"sykhiv",      title:"СИХІВ",            region:"Львівщина",        x:15, y:40},   // TODO(Роми): звірити позицію піна візуально (Львів)
-  {id:"migrants",    title:"ХВИЛЯ",            region:"Закарпаття",       x:11, y:52},   // TODO(Роми): звірити позицію піна візуально (Хуст, Закарпаття)
+  {id:"sykhiv",      title:"СИХІВ",            region:"Львівщина",        x:15, y:40},   // TODO(art): звірити позицію піна візуально (Львів)
+  {id:"migrants",    title:"ХВИЛЯ",            region:"Закарпаття",       x:11, y:52},   // TODO(art): звірити позицію піна візуально (Хуст, Закарпаття)
   {id:"eurofatigue", title:"ЄВРОПА",           region:"ЄС",                x:5,  y:20},
   {id:"deep",        title:"ГЛИБИНА",          region:"Тил РФ",            x:92, y:20},
   {id:"elections",   title:"ВИБОРИ",           region:"Загальнодержавна",  x:38, y:45},
@@ -1371,8 +1522,8 @@ const mapOps_EN = [
   {id:"azs",        title:"FUEL",       region:"Dnipropetrovsk Oblast",x:57, y:58},
   {id:"poland",     title:"BORDER",     region:"Borderland",           x:8,  y:36},
   {id:"granit",     title:"GRANITE",    region:"East",                 x:26, y:48},
-  {id:"sykhiv",     title:"SYKHIV",     region:"Lviv Oblast",          x:15, y:40},   // TODO(Roma): check pin position visually (Lviv)
-  {id:"migrants",   title:"WAVE",       region:"Zakarpattia",          x:11, y:52},   // TODO(Roma): check pin position visually (Khust, Zakarpattia)
+  {id:"sykhiv",     title:"SYKHIV",     region:"Lviv Oblast",          x:15, y:40},   // TODO(art): check pin position visually (Lviv)
+  {id:"migrants",   title:"WAVE",       region:"Zakarpattia",          x:11, y:52},   // TODO(art): check pin position visually (Khust, Zakarpattia)
   {id:"eurofatigue",title:"EUROPE",     region:"EU",                   x:5,  y:20},
   {id:"deep",       title:"DEEP-STRIKE",region:"Russian rear",         x:92, y:20},
   {id:"elections",  title:"ELECTIONS",  region:"Nationwide",           x:38, y:45},
@@ -1380,7 +1531,12 @@ const mapOps_EN = [
   {id:"laundering", title:"☠ BOSS",     region:"Classified",           x:82, y:46}
 ];
 
-/* ---- Вступна катсцена: Інструктор ---- */
+/* =====================================================================
+   ПЕРСОНАЖІ Й ДІАЛОГИ
+   Портрет = 4 кадри: 1 спокій, 2-3 говоріння, 4 моргання. Якщо файлів
+   нема, двигун показує силует. Репліки друкуються typewriter-ефектом.
+   ===================================================================== */
+/* Інструктор: веде вступну катсцену і дає підказки туторіалу. */
 const INSTRUCTOR = {
   frames:["assets/instructor_1.png","assets/instructor_2.png","assets/instructor_3.png","assets/instructor_4.png"]
 };
@@ -1401,7 +1557,7 @@ const DIALOGUE_EN = [
  "Well then, let's see who you are in this campaign."
 ];
 
-/* ---- Катсцена перед босом (задача 12, Г9): та сама діалогова система ---- */
+/* Катсцена перед босом: та сама діалогова система, інший портрет і голос. */
 const BOSS_DIALOGUE_UK = [
  "Перехоплення каналу. Не шукай джерело сигналу. Його нема.",
  "Ми спостерігали, як ти вчився. Блекаут. Уламки. Черги. Кордон. «Граніт». Непогано. Для аматора.",
@@ -1417,7 +1573,11 @@ const BOSS_DIALOGUE_EN = [
  "Try to keep up. The ones before you didn't."
 ];
 
-/* ---- Вбудований туторіал (задача 11): підказки Інструктора в операції 1 ---- */
+/* =====================================================================
+   ТУТОРІАЛ: підказки Інструктора поверх першої зіграної операції.
+   id — тригер у двигуні (showHint), sel — CSS-селектор елемента, який
+   підсвітити (необов'язково), text — репліка.
+   ===================================================================== */
 const TUTORIAL_UK = [
  {id:"feed_enter", sel:'.osint-bar', text:"Це стрічка. Читай усе. Ворожі пости познач кліком, потім підтверди. Скільки їх, не скажу. Іконка 🛰 біля кожного поста — це OSINT: сирі дані про канал. Дата реєстрації і хто репостить часто кажуть більше, ніж текст."},
  {id:"first_pick", sel:'#confirmBtn', text:"Позначив. Передумаєш — клікни ще раз. Коли впевнений, тисни підтвердити."},
@@ -1445,7 +1605,11 @@ const TUTORIAL_EN = [
  {id:"boss_brief", sel:'.osint-bar', text:"I saw this intercept too. He wants you looking for lies. Don't. Look at the infrastructure: registration dates, renamings, shared aggregators. You see the pipeline by its pipes, not its words."}
 ];
 
-/* ---- Ролі (складність) ---- */
+/* =====================================================================
+   РОЛІ = рівні складності.
+   time — секунди на контрхід; pen — множник штрафів; wild — ймовірність
+   wildcard-події між фазами; img/ini/col — портрет або плейсхолдер.
+   ===================================================================== */
 const ROLES_UK = [
  {n:"ПРЕСОФІЦЕР", d:"Перший тиждень на посаді. Тобі дають фору: більше часу на рішення, м'якші наслідки помилок.", time:60, pen:0.75, wild:0.25, stats:"⏱ 60с · штрафи −25%", img:"assets/role_press.png", ini:"ПО", col:"#4CC38A"},
  {n:"КОМУНІКАЦІЙНИК ШТАБУ", d:"Робочий темп. Помилки коштують повну ціну, несподіванки трапляються.", time:45, pen:1, wild:0.4, stats:"⏱ 45с · штрафи ×1", img:"assets/role_comms.png", ini:"КШ", col:"#F5C542"},
@@ -1457,7 +1621,14 @@ const ROLES_EN = [
  {n:"CRISIS MANAGER", d:"Everything's on fire, all at once. Little time, harsh penalties, the enemy is more active than ever.", time:40, pen:1.3, wild:0.6, stats:"⏱ 40s · penalties +30% · more events", img:"assets/role_crisis.png", ini:"CM", col:"#E5484D"}
 ];
 
-/* ---- Wildcard-події ---- */
+/* =====================================================================
+   WILDCARD-ПОДІЇ: несподіванки між фазами, кожна не більше раз за кампанію.
+   type:"inst" — миттєвий ефект: fx (стійкість), rep (довіра), timerCut
+   (секунди, відрізані від таймера контрходу).
+   Без type — вибір a/b на 15 секунд; у кожного варіанта t (текст),
+   e (пояснення), fx, необов'язкові rep і cons («гучне мовчання»).
+   Пастка: варіант із fx>0, але cons:true або rep<0.
+   ===================================================================== */
 const WILD_UK = [
  {id:"amp", type:"inst", h:"ВКИД ПІДХОПИВ КАНАЛ-МІЛЬЙОННИК", p:"Охоплення ворожої версії різко зросло. Наступне рішення доведеться приймати швидше.", fx:-6, timerCut:10},
  {id:"vol", type:"inst", h:"ВОЛОНТЕРИ СПРОСТУВАЛИ САМІ", p:"Локальна спільнота розібрала фейк на атоми ще до твоєї реакції. Мережа працює на тебе.", fx:5},
@@ -1503,10 +1674,12 @@ const WILD_EN = [
  {id:"marathon", type:"inst", h:"A MAJOR BROADCAST USED YOUR FACTS WITHOUT CREDIT", p:"Your timeline and your documents reached a million-strong audience. Your name wasn't mentioned. Bad for the ego, good for the field: the version became mainstream.", fx:5}
 ];
 
-/* ---- Перемикач мови: живий SCENARIOS/ROLES/WILD/mapOps/... завжди вказує на
-   UK- чи EN-версію. Перемінні НЕ const — engine.js читає їх як голі
-   ідентифікатори (SCENARIOS[S.i], ROLES[i], WILD.filter(...) тощо) в сотнях
-   місць; перевизначення тут підхоплюється всюди без жодної правки engine.js. */
+/* =====================================================================
+   ПЕРЕМИКАЧ МОВИ
+   Двигун читає SCENARIOS, ROLES, WILD, mapOps… як голі глобальні
+   ідентифікатори, тому вони оголошені через let і просто перепризначаються
+   на UK- чи EN-версію. Стартова мова береться з localStorage.
+   ===================================================================== */
 let LANG = (function(){ try{ return localStorage.getItem('ipsomnia_lang')==='en' ? 'en' : 'uk'; }catch(e){ return 'uk'; } })();
 let SCENARIOS, ROLES, WILD, mapOps, BOSS_CHAR, DIALOGUE, BOSS_DIALOGUE, TUTORIAL;
 function applyLang(lang){

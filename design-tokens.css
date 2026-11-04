@@ -1,8 +1,11 @@
-/* === design-tokens.css ===================================================
-   Портовано з design/crt-lab.html, блок 01. Підключати ПЕРШИМ, до решти
-   стилів гри. Оверлеї (.crt-warm/.crt-noise/.crt-scanlines/.crt-vignette)
-   чіпляються в кінець <body>: 4 елементи position:fixed; pointer-events:none —
-   нічого не ламають у розмітці, замінюють колишні ad-hoc body::before/after. */
+/* =====================================================================
+   IPSOMNIA · DESIGN TOKENS  (design-tokens.css)
+   EN · Colour palette, phosphor glow shadows and the four CRT overlays
+   (vignette, warm tint, scanlines, noise). Loaded before the game
+   stylesheet in index.html. The overlays are position:fixed elements at
+   the end of <body> with NEGATIVE z-index, so they sit under all content.
+   UA · Палітра, свічення і CRT-оверлеї. Підключається першим.
+   ===================================================================== */
 :root{
   --bg:#0B0F1A;  --panel:#131A2B;
   --gold:#FFD24A; --red:#FF4A4A; --violet:#9B6BFF; --cyan:#4AE0E0;
@@ -20,14 +23,11 @@
 .glow-vlt { color:var(--violet); text-shadow:var(--glow-violet); }
 
 /* ---- CRT-оверлеї: кожен position:fixed; pointer-events:none ----
-   Задача 1: ієрархія "декоративні оверлеї < контент < кнопки < hint-panel".
-   Оригінальний сніпет лаби ставив ці z-index у 9995-9998 (скло CRT-екрана
-   ПОВЕРХ усього) — саме тому кнопки/картки на телефоні бралися каламуттю
-   під сканлайнами. position:fixed елемент з БУДЬ-яким невід'ємним z-index
-   завжди малюється НАД звичайним (непозиціонованим) контентом, незалежно
-   від значення — тому єдиний спосіб покласти ці оверлеї СПРАВДІ під
-   контент це від'ємний z-index (шар "негативних stacking contexts",
-   який рендериться до звичайного контенту в межах кореневого контексту). */
+   Ієрархія шарів: декоративні оверлеї < контент < кнопки < hint-panel.
+   position:fixed елемент з будь-яким невід'ємним z-index малюється над
+   звичайним контентом, тому єдиний спосіб покласти «скло» під контент
+   (щоб кнопки на телефоні не бралися каламуттю під сканлайнами) це
+   від'ємний z-index. */
 .crt-vignette,.crt-scanlines,.crt-noise,.crt-warm{
   position:fixed; inset:0; pointer-events:none;
 }

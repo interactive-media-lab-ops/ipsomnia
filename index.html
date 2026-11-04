@@ -1,4 +1,20 @@
 <!DOCTYPE html>
+<!--
+  IPSOMNIA · ENTRY POINT  (index.html)
+  EN · Markup and styles of the game. No build step: open this file in a
+  browser (or serve the repo root) and it works offline. Order of things:
+    <head>   meta, OG preview, self-hosted fonts, design-tokens.css, the
+             game stylesheet (inline)
+    <body>   1. #ipso-boot  self-contained intro splash (own CSS + JS); fires
+                            'ipso:intro-done' when finished
+             2. #topbar     HUD: brand, sound toggles, influence bar, trust,
+                            streak, badges; hidden until a role is chosen
+             3. #app        the single container engine.js renders screens into
+             4. CRT overlays, glitch overlay, <noscript> fallback
+             5. content.js (data) then engine.js (logic)
+  UA · Розмітка і стилі гри. Білдів нема: файл відкривається подвійним кліком.
+  Порядок блоків у body описано вище.
+-->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -32,7 +48,7 @@
   --gold:#F5C542; --gold-dim:#54430F;
   --ok:#4CC38A; --purple:#B26AC4;
   --r:10px;
-  /* P2: типографічна шкала — єдине джерело розмірів */
+  /* Типографічна шкала: єдине джерело розмірів шрифту. Локальні винятки нижче позначені явно. */
   --fs-px-h: clamp(13px,4vw,18px);  /* Press Start: заголовки h2 */
   --fs-px-ui: 11px;                 /* Press Start: кнопки, mode-name */
   --fs-px-eyebrow: 10px;            /* Press Start: eyebrow, tb-title */
@@ -43,16 +59,14 @@
   --fs-label: 10px;                 /* JetBrains: nlabel, infl-labels (було 9-10px) */
 }
 *{box-sizing:border-box;margin:0;padding:0}
-/* Фікс 3: 100vh на iOS Safari не враховує тулбар, що ховається/виїжджає —
-   рядок з 100dvh нижче перебиває його лише там, де dvh підтримується
-   (старі браузери просто ігнорують невідому одиницю й лишають 100vh). */
+/* 100vh на iOS Safari не враховує тулбар, що ховається/виїжджає; рядок із
+   100dvh нижче перебиває його там, де dvh підтримується (старі браузери
+   ігнорують невідому одиницю й лишають 100vh). */
 html,body{height:100vh;height:100dvh}
-/* body більше НЕ скролиться сам (overflow:hidden) — це і прибирає той самий
-   "тулбар з'їдає перший тап" ефект iOS Safari, який завжди тригериться
-   скролом САМЕ body/document. Замість цього body — flex-колонка: .topbar
-   лишається зверху звичайним потоком (position:sticky більше не потрібен,
-   але не чіпаємо його — нешкідливий, коли немає скролу на цьому рівні),
-   а #app/.wrap нижче стає власним скрол-контейнером (див. .wrap нижче). */
+/* body не скролиться сам (overflow:hidden): саме скрол body/document тригерить
+   ефект «тулбар з'їдає перший тап» в iOS Safari. body є flex-колонкою:
+   .topbar зверху звичайним потоком, #app/.wrap нижче є власним
+   скрол-контейнером. */
 body{
   background:
     radial-gradient(900px 500px at 50% -8%, #131F38 0%, var(--bg) 60%);
@@ -61,21 +75,18 @@ body{
   transition:background 1.2s ease;
   display:flex; flex-direction:column;
 }
-/* Бос-режим (задача 8.3): темніший, червонявий фон на весь час боса */
+/* Бос-режим: темніший, червонявий фон на весь час фінальної операції */
 body.boss-mode{
   background:
     radial-gradient(900px 500px at 50% -8%, #2A1420 0%, #120609 60%);
 }
-/* CRT сканлайни/віньєтка тепер з design-tokens.css (.crt-scanlines/.crt-vignette
-   в кінці body) — старий ad-hoc body::before/after прибрано, дублював те саме. */
-/* Фікс 3: #app/.wrap — власний скрол-контейнер (не body). flex:1 забирає весь
-   простір під .topbar; min-height:0 обов'язковий для flex-дитини з overflow —
-   інакше вона не стискається й не скролиться як слід. -webkit-overflow-scrolling
-   вмикає інерційний скрол на iOS. Відступ знизу враховує home-індикатор. */
+/* CRT-сканлайни і віньєтка задані в design-tokens.css (елементи .crt-* в кінці body) */
+/* #app/.wrap є власним скрол-контейнером. flex:1 забирає весь простір під
+   .topbar; min-height:0 обов'язковий для flex-дитини з overflow, інакше вона
+   не стискається і не скролиться. Відступ знизу враховує home-індикатор. */
 .wrap{max-width:640px;margin:0 auto;width:100%;padding:16px 16px calc(48px + env(safe-area-inset-bottom,0px));
   flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;}
-/* Правка плейтесту (п.3): ховаємо системний скролбар на всіх скрол-контейнерах,
-   скрол лишається робочим (колесо/тач). Прибирає «системну» смугу з екрана. */
+/* Системний скролбар схований на всіх скрол-контейнерах, скрол лишається робочим (колесо/тач). */
 .wrap,.osint-card,.hint-panel{scrollbar-width:none;-ms-overflow-style:none;}
 .wrap::-webkit-scrollbar,.osint-card::-webkit-scrollbar,.hint-panel::-webkit-scrollbar{width:0;height:0;display:none;}
 .mono{font-family:'JetBrains Mono',monospace}
@@ -94,13 +105,9 @@ body.boss-mode{
 /* Музику вимкнено: приглушений вигляд кнопки 🎵, sfx лишається активним */
 .sfx-btn.off{opacity:.38}
 .tb-prog{font-family:'Press Start 2P';font-size:var(--fs-px-micro);color:var(--muted)}
-/* Задача 3: шкала впливу перероблена на дві чіткі суцільні зони замість
-   градієнта+штрихування, які зливались в кашу. База (.infl) — суцільна
-   золота "стійкість"; .infl-fill — суцільна червона "вплив ІПСО", що
-   насувається зліва (scaleX, блок 06). Роздільник зон — уже наявний
-   .infl-marker (яскрава золота лінія на межі), другий окремий роздільник
-   не потрібен. Штрихування прибрано повністю (не лишено навіть статичним —
-   на суцільних кольорах воно тільки заважало читати межу зон). */
+/* Шкала впливу: дві суцільні зони. База (.infl) золота «стійкість»,
+   .infl-fill червоний «вплив ІПСО», що насувається зліва (scaleX із JS).
+   Межу зон позначає .infl-marker (яскрава золота лінія). */
 .infl{position:relative;height:24px;border:2px solid var(--line);overflow:hidden;
   background:var(--gold-dim)}
 .infl-fill{position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);
@@ -134,7 +141,7 @@ body.boss-mode{
 .hud2 .rep{color:var(--ok)}
 .hud2 .rep.low{color:var(--hostile)}
 .hud2 .badges span{letter-spacing:2px}
-/* Задача 4, мікроанімація 2/5: бейдж розкритої техніки — "печатка" */
+/* Бейдж щойно розкритої техніки: анімація «печатки» */
 .badge-ico{display:inline-block}
 .badge-ico.got{color:var(--gold);text-shadow:var(--glow-gold)}
 .badge-ico.stamp{animation:badgeStamp 320ms ease-out 1 both}
@@ -156,23 +163,11 @@ body.boss-mode{
 /* fadeUp лишається — його використовує .osint-modal нижче, не .screen */
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
-/* ===== design/crt-lab.html блок 02: «термінал прокидається» =====
-   Селектори адаптовано під наявну розмітку: кожен render() вже загортає
-   контент у <div class="screen">, тому booting чіпляється просто поверх
-   .screen, а .boot-line — структурний селектор на прямих дітях .screen
-   замість окремого класу на кожному рядку: у грі немає єдиної розмітки
-   "рядків терміналу", але кожен екран однаково складений з верхньорівневих
-   блоків, тож вони і стають "рядками".
-   .screen.booting навмисно animation:none (раніше тут був bootFlicker —
-   контейнерний дво-дiповий спалах opacity, що на звичайних переходах
-   читався як "контент зник і зʼявився знову"). .screen САМ (без .booting)
-   раніше мав animation:fadeUp — коли bootScreen знімає .booting таймером
-   (maxDelay+160мс), елемент повертався до базового правила .screen, і
-   fadeUp стартував ЗАНОВО (animation-name змінюється з none на fadeUp —
-   це нова гра анімації, не відновлення) — друга, вже непотрібна поява
-   контенту (opacity 0→1) ПІСЛЯ того, як стагер дітей уже все показав.
-   Тому fadeUp прибрано з .screen повністю: правило "рівно один вхідний
-   ефект" тепер витримується і в момент показу, і після зняття .booting. */
+/* ===== Boot-флікер «термінал прокидається» =====
+   Кожен render() загортає екран у <div class="screen">; клас .booting
+   чіпляється на нього, а прямі діти .screen стають «рядками терміналу»,
+   що виринають зверху вниз. Знімається з JS одразу після стагера (див.
+   bootScreen в engine.js). */
 .screen.booting{ animation:none; }
 .screen.booting>*{ opacity:0; transform:translateY(-6px); }
 .screen.booting>*.on{ animation:bootLineIn 150ms ease-out both; }
@@ -184,17 +179,10 @@ body.boss-mode{
   .screen.booting>*,.screen.booting>*.on{ opacity:1; transform:none; animation:none; }
 }
 
-/* ===== блок 08: glitch-перехід (портовано з design/crt-lab.html, блок 08,
-   де його додав Рома) — заміна попереднього ad-hoc джитера на .screen.
-   Лаба тримає .glitch-fx ВСЕРЕДИНІ контейнера екрана (#d-glitch); у грі
-   .screen перестворюється при кожному render() (innerHTML), тож замість
-   переносити position:relative на .screen і вставляти розмітку оверлея
-   в кожен render(), .glitch-fx — ОДИН persistent fixed-оверлей на всю
-   сторінку (як .crt-* нижче в body), і glitchTransition() лише перемикає
-   на ньому клас .run. Контенту .screen це не чіпає, тому колізії з
-   .screen.booting більше немає — окремі елементи, окремі анімації.
-   Тільки transform/opacity (без filter/clip-path на площі → 60fps).
-   Тривалість — у --glitch-dur, steps(1) дає різкі кадри без плавного ковзання. */
+/* ===== Глітч-перехід (вузлові точки кампанії) =====
+   .glitch-fx є одним persistent fixed-оверлеєм на всю сторінку (як .crt-*),
+   бо .screen перестворюється при кожному render(). glitchTransition() в
+   engine.js лише перемикає клас .run; тривалість задає --glitch-dur. */
 :root{ --glitch-dur:230ms; }
 .glitch-fx{ position:fixed; inset:0; z-index:90; pointer-events:none; opacity:0; }
 .glitch-fx.run{ animation:gfShow var(--glitch-dur) steps(1) 1 both; }
@@ -230,18 +218,15 @@ body.boss-mode{
 @keyframes gfFade{ 0%{opacity:.55} 100%{opacity:0} }
 
 .eyebrow{font-family:'Press Start 2P';font-size:var(--fs-px-eyebrow);letter-spacing:.06em;color:var(--gold);margin-bottom:12px;line-height:1.7}
-/* Фікс 2а: заголовок фази — мін. 1.5x кегль (9px→14px+, clamp під 390px),
-   золоте свічення з токенів, піксельний (сегментований) розділювач під
-   текстом. Клас додається ПОРУЧ з .eyebrow (не замінює його) лише на 4
-   рендерах "ФАЗА N · ..." в engine.js — інші .eyebrow (мапа, вибір ролі
-   тощо) цей фікс не чіпає. */
+/* Заголовок фази (.phase-title поруч із .eyebrow): більший кегль, золоте
+   свічення з токенів, піксельний розділювач під текстом. Інші .eyebrow
+   (мапа, вибір ролі) не чіпає. */
 .phase-title{font-size:var(--fs-px-h);line-height:1.6;color:var(--gold);
   text-shadow:var(--glow-gold,0 0 4px rgba(255,210,74,.55),0 0 14px rgba(255,168,40,.30));
   padding-bottom:12px;margin-bottom:16px;position:relative}
 .phase-title::after{content:'';position:absolute;left:0;bottom:0;width:100%;max-width:220px;height:4px;
   background:repeating-linear-gradient(90deg,var(--gold) 0 6px,transparent 6px 10px)}
-/* P2: локальний виняток — h1 навмисно за межами шкали (--fs-px-h іменована
-   як "заголовки h2"), це герой-заголовок значно більшого масштабу. */
+/* Виняток зі шкали: h1 є герой-заголовком значно більшого масштабу. */
 h1{font-family:'Press Start 2P';font-size:clamp(22px,6vw,34px);line-height:1.25;margin-bottom:16px}
 h2{font-family:'Press Start 2P';font-size:var(--fs-px-h);line-height:1.5;margin-bottom:12px}
 .lead{color:var(--muted);font-size:var(--fs-body);line-height:1.6;margin-bottom:8px}
@@ -252,8 +237,7 @@ h2{font-family:'Press Start 2P';font-size:var(--fs-px-h);line-height:1.5;margin-
 .title-screen .mode{background:#111A2B}
 /* Головна кнопка — герой */
 .title-screen .mode.hero{border:2px solid var(--gold);box-shadow:0 0 28px rgba(245,197,66,.16);background:#131E30;padding:22px}
-/* P2: локальний виняток — назва режиму на "хіро"-картці навмисно більша за
-   --fs-px-ui (11px), це смисловий акцент на головному режимі, не помилка. */
+/* Виняток зі шкали: назва режиму на «хіро»-картці навмисно більша. */
 .title-screen .mode.hero .mode-name{font-size:15px;color:var(--gold)}
 /* Локед-режими — компактне тло-роадмап */
 .title-screen .mode.locked{padding:12px 16px;opacity:1;background:#0E1622;border-color:#1B2740}
@@ -263,8 +247,7 @@ h2{font-family:'Press Start 2P';font-size:var(--fs-px-h);line-height:1.5;margin-
 .title-screen .mode.locked .mode-desc{font-size:var(--fs-opt);line-height:1.45}
 .title-screen .mode.locked .mode-name{font-size:var(--fs-px-ui)}
 /* Лого дихає */
-/* P2: локальний виняток — тайтл-екран h1 (лого гри), той самий герой-масштаб,
-   що й базовий h1 вище; поза шкалою навмисно. */
+/* Виняток зі шкали: лого гри на тайтл-екрані, герой-масштаб. */
 .title-screen h1{font-size:44px;margin:6px 0 14px;text-shadow:0 4px 0 rgba(0,0,0,.6)}
 @media (max-width:560px){.title-screen h1{font-size:32px}}
 .card{background:var(--panel);border:2px solid var(--line);padding:18px;margin-bottom:12px}
@@ -277,10 +260,7 @@ h2{font-family:'Press Start 2P';font-size:var(--fs-px-h);line-height:1.5;margin-
 @media (max-height:640px){
   .op-art{max-height:22vh;max-height:22dvh}
 }
-/* Фікс 3: подвійний тап iOS — .role-card/.osint-x додано (їх уже чекав
-   звуковий click-листенер у engine.js, але тут для touch-action бракувало);
-   .hint-panel — контейнер нижньої панелі дій (bottom-sheet на мобілі,
-   містить .hint-ok). Решта — як було, нічого не прибирав. */
+/* touch-action:manipulation прибирає затримку подвійного тапу iOS на всіх клікабельних елементах. */
 button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,.intro-skip,.sfx-btn,.role-card,.osint-x,.hint-panel{touch-action:manipulation}
 .btn{display:block;width:100%;text-align:center;font-family:'Press Start 2P';font-size:var(--fs-px-ui);
   padding:16px 12px;border:2px solid #000;cursor:pointer;line-height:1.5;
@@ -290,11 +270,10 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .btn:focus-visible,.opt:focus-visible,.msg:focus-visible,.mode:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .btn.ghost{background:var(--panel);color:var(--muted);border-color:var(--line);box-shadow:0 4px 0 #060B14}
 
-/* ===== design/crt-lab.html блок 04: пульс свічення на кнопках =====
-   Наявний .btn лишає свій базовий вигляд (суцільний золотий блок,
-   3D-тінь при натисканні) — блок 04 додає ЛИШЕ hover/active пульс-глоу
-   поверх. @media(hover:hover) — за конвенцією проєкту (.msg:hover,
-   .opt:hover тощо), щоб пульс не залипав на мобільних після тапу. */
+/* ===== Пульс свічення на кнопках =====
+   .btn лишає базовий вигляд (суцільний золотий блок, 3D-тінь при натисканні);
+   тут лише hover/active пульс-глоу. @media(hover:hover), щоб пульс не
+   залипав на мобільних після тапу. */
 @media (hover:hover){
   .btn:hover{ border-color:var(--cyan); box-shadow:var(--glow-cyan);
     animation:btnPulse 1.4s ease-in-out infinite; }
@@ -308,7 +287,7 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 @keyframes btnPulseGold{ 0%,100%{box-shadow:0 0 4px rgba(255,210,74,.40)}
   50%{box-shadow:0 0 5px rgba(255,210,74,.65),0 0 18px rgba(255,168,40,.40)} }
 .btn--cyan{ color:var(--cyan); border-color:#205050; text-shadow:var(--glow-cyan); }
-/* фіолетова кнопка ФІДБЕК — окремий утилітний акцент (задача: btn--feedback) */
+/* Фіолетова кнопка ФІДБЕК: окремий утилітний акцент (.btn--feedback) */
 .btn--feedback{ color:var(--violet); border-color:#3A2A66; text-shadow:var(--glow-violet); }
 @media (hover:hover){
   .btn--feedback:hover{ border-color:var(--violet); box-shadow:var(--glow-violet);
@@ -364,9 +343,8 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .gboss .dot{border-color:var(--hostile);color:var(--hostile)}
 .gboss.cur .dot{background:var(--hostile-dim)}
 .gboss .nlabel{color:var(--hostile)}
-/* Мапа-хаб (структура «відкрита мапа»): усі не-босівські піни клікабельні
-   одразу (.available), а не лише один "поточний" — тому не блимають (кілька
-   одночасно блимаючих піни виглядали б хаотично), лише підсвічуються на ховері. */
+/* Усі відкриті піни (.available) клікабельні одразу, тому не блимають
+   (кілька блимаючих пінів виглядали б хаотично), лише підсвічуються на ховері. */
 .gnode.available{cursor:pointer}
 .gnode.available .dot{border-color:var(--gold-dim)}
 @media (hover:hover){.gnode.available:hover .dot{border-color:var(--gold);color:var(--gold);background:var(--gold-dim)}}
@@ -388,11 +366,10 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .msg-flag{display:inline-block;font-family:'JetBrains Mono';font-size:var(--fs-label);color:var(--muted);
   background:var(--panel2);border:1px solid var(--gold-dim);padding:3px 7px;margin-bottom:8px;letter-spacing:.03em}
 .msg-views{font-family:'JetBrains Mono';font-size:var(--fs-label);color:var(--muted);margin-top:8px;text-align:right}
-/* Задача 2: два окремі стани. SELECTED (тап, до підтвердження) — нейтральний
-   циан + маркер, знімається повторним тапом. Червоне+глітч (is-threat,
-   блок 05) — тільки після ПІДТВЕРДЖЕННЯ вибору фази (resolveFeed), і лише
-   на "червоних" вердиктах (пропущено/хибна тривога) — на .hit (влучив,
-   зелений) навмисно НЕ вішається, щоб не забити усталений "зелений=вірно". */
+/* Два стани поста. SELECTED (.sel, тап до підтвердження): нейтральний циан
+   з маркером, знімається повторним тапом. Червоне + глітч (.is-threat):
+   лише після підтвердження вибору і лише на «червоних» вердиктах
+   (пропущено / хибна тривога); влучення лишається зеленим. */
 .msg.sel{border-color:var(--cyan);box-shadow:var(--glow-cyan)}
 .msg.sel::after{content:'✓ ОБРАНО';position:absolute;top:-11px;right:10px;
   font-family:'Press Start 2P';font-size:var(--fs-px-micro);letter-spacing:.02em;
@@ -406,14 +383,9 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .msg .tag.n{background:#5A1D22;color:#fff}
 .locked-feed{pointer-events:none}
 
-/* ===== design/crt-lab.html блок 05: поява картки + глітч-загроза =====
-   .feed-card→.msg, .feed-title→.msg-author (селектори під наявну розмітку
-   стрічки). Поява: клас .appear додається одразу в msgHTML() — елемент
-   новий при вставці, окремий JS-тригер (toggle+reflow) не потрібен.
-   Задача 2: .is-threat+.glitch більше НЕ вішаються в pickMsg() (тап дає
-   лише нейтральний .sel циан вище) — тепер їх додає resolveFeed() на
-   "червоних" вердиктах (пропущено/хибна тривога), як реакція на
-   ПІДТВЕРДЖЕННЯ вибору фази, не на сам тап. */
+/* ===== Поява поста і глітч «підтверджена загроза» =====
+   .appear додається одразу в msgHTML(), бо елемент новий при вставці.
+   .is-threat + .glitch додає resolveFeed() на червоних вердиктах. */
 .msg.appear{ animation:cardAppear 260ms steps(6) 1 both; }
 @keyframes cardAppear{ 0%{opacity:0} 20%{opacity:.4} 40%{opacity:.14}
   60%{opacity:.8} 80%{opacity:.35} 100%{opacity:1} }
@@ -430,9 +402,8 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .opt{background:var(--panel);border:2px solid var(--line);padding:14px;cursor:pointer;
   text-align:left;color:var(--text);font-family:'Inter';font-size:var(--fs-opt);line-height:1.5;transition:border-color .15s;width:100%}
 @media (hover:hover){.opt:hover{border-color:#3A4E73}}
-/* P1: згортання описів опцій (референс: пости ФБ). Правка плейтесту (п.2):
-   опис повністю схований за замовчуванням, у картці видно лише заголовок —
-   опис розкривається по «показати більше». */
+/* Опис опції повністю схований за замовчуванням (у картці видно лише
+   заголовок) і розкривається по «показати більше». */
 .opt .opt-d{display:block}
 .opt .opt-d.clamped{display:none}
 .opt .opt-more{display:inline-block;margin-top:6px;font-family:'JetBrains Mono';font-size:var(--fs-meta);font-weight:600;color:var(--gold);cursor:pointer;letter-spacing:.04em}
@@ -452,8 +423,7 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 /* Фаза 2: аналітичне досьє — сітка 2 колонки, нумеровані гіпотези */
 .ph-analysis .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;counter-reset:hyp}
 .ph-analysis .opt{counter-increment:hyp;border-top:3px solid var(--purple);background:#131022}
-/* P2: локальний виняток — лічильник ГІПОТЕЗА декоративний, підняли з 6px до
-   стелі 8px, вказаної в брифі; це не одне з 8 значень шкали, тому без var(). */
+/* Виняток зі шкали: декоративний лічильник ГІПОТЕЗА. */
 .ph-analysis .opt b::before{content:"ГІПОТЕЗА 0" counter(hyp);display:block;font-family:'Press Start 2P';font-size:8px;color:#5C4A70;margin-bottom:7px;letter-spacing:.08em}
 .ph-analysis .opt b{display:block;font-size:var(--fs-body);line-height:1.3;color:var(--text);margin-bottom:5px}
 .ph-analysis .opt{font-size:var(--fs-opt);color:var(--muted);line-height:1.5}
@@ -496,8 +466,7 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 
 /* ===== Фінал ===== */
 .debrief{border-left:4px solid var(--gold)}
-/* P2: локальний виняток — вердикт рангу (S/A/B/C), герой-масштаб дебрифу,
-   як .grade нижче; поза шкалою навмисно. */
+/* Виняток зі шкали: вердикт рангу кампанії, герой-масштаб фіналу. */
 .rank{font-family:'Press Start 2P';font-size:clamp(16px,5vw,24px);line-height:1.5;margin:14px 0}
 .rank.gold{color:var(--gold)} .rank.mid{color:#B8C8E2} .rank.low{color:var(--hostile)}
 .stat{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:var(--fs-body)}
@@ -509,7 +478,7 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .chip{font-family:'Press Start 2P';font-size:var(--fs-px-micro);padding:7px 10px;border:2px solid;line-height:1.4}
 .chip.ok{color:var(--ok);border-color:#1F4A36;background:#0F231B}
 .chip.vuln{color:var(--hostile);border-color:#5A1D22;background:#231216}
-/* Задача 12, В8: банер загрози перед стрічкою боса */
+/* Банер «ПІДВИЩЕНА АКТИВНІСТЬ ІПСО» перед стрічкою боса */
 .attack-banner{background:#231216;border:2px solid var(--hostile);color:var(--hostile);
   font-family:'Press Start 2P';font-size:var(--fs-px-ui);text-align:center;letter-spacing:.05em;
   padding:14px 10px;margin-bottom:14px;line-height:1.6}
@@ -527,8 +496,7 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .avatar{position:relative;display:inline-block;flex:none;border:2px solid var(--acol,var(--line));background:var(--panel2);overflow:hidden}
 .avatar-ini{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Press Start 2P';color:#0A0F1A;background:var(--acol,var(--muted))}
 .avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
-/* P2: локальний виняток — розмір ініціалів аватара пропорційний розміру
-   самого блока (56px/36px), не частина текстової шкали. */
+/* Виняток зі шкали: ініціали аватара пропорційні розміру аватара. */
 .av-lg{width:56px;height:56px}.av-lg .avatar-ini{font-size:13px}
 .av-sm{width:36px;height:36px}.av-sm .avatar-ini{font-size:11px}
 .role-card{display:flex;gap:14px;align-items:center}
@@ -539,12 +507,8 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .bob{animation:bob 2.2s ease-in-out infinite}
 
 /* ===== Ранг операції (S/A/B/C) ===== */
-/* Задача 4, мікроанімація 4/5: вердикт фази — одиночний CRT-flicker кадр
-   при появі (лише opacity, той самий дво-дiповий патерн, що раніше грав
-   на .screen.booting; тут це власна decorative-анімація одного елемента
-   .grade, не контейнера екрана, тож "зникло/з'явилось" тут не стосується) */
-/* P2: локальний виняток — велика літера рангу (A/B/C), герой-дисплей
-   фіналу, поза межами звичайної текстової шкали навмисно. */
+/* Літера рангу: одиночний CRT-flicker кадр при появі (лише opacity). */
+/* Виняток зі шкали: велика літера рангу (A/B/C), герой-дисплей. */
 .grade{font-family:'Press Start 2P';font-size:clamp(52px,17vw,92px);line-height:1;margin:4px 0 18px;text-shadow:0 4px 0 #000;
   animation:gradeFlicker 220ms steps(6) 1 both}
 @keyframes gradeFlicker{
@@ -552,7 +516,7 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .gr-a{color:var(--gold)}.gr-b{color:#B8C8E2}.gr-c{color:var(--hostile)}
 .grade-sub{font-family:'JetBrains Mono';font-size:var(--fs-meta);color:var(--muted);letter-spacing:.08em;margin:-10px 0 18px}
 
-/* ===== Флоу-рефакторинг, Фаза 1: короткий фідбек у місії + AAR-звіт ===== */
+/* ===== Короткий фідбек у місії + AAR-звіт після операції ===== */
 /* Дрібний рядок «повний розбір — у звіті» під короткою відповіддю в місії */
 .report-note{font-family:'JetBrains Mono';font-size:var(--fs-label);color:var(--muted);letter-spacing:.03em;opacity:.75;margin:2px 0 12px;text-align:center}
 /* AAR: шапка (результат) центрована, секції — ліворуч */
@@ -579,7 +543,7 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 .aar-pick-e{font-size:var(--fs-opt);color:var(--text);line-height:1.55}
 .aar-cliff{margin-top:16px}
 .aar-btns{margin-top:20px}
-/* п.7: детальний розбір під кнопкою; за замовчуванням лише таблиця результату */
+/* Детальний розбір AAR схований під кнопкою; за замовчуванням лише таблиця результату */
 .aar-detail-toggle{margin-top:14px}
 .aar-detail{display:none}
 .aar-detail.open{display:block}
@@ -598,15 +562,13 @@ button,.btn,.opt,.mode,.msg,.osint-btn,.gnode,.hint-ok,.dialogue-box,.narr-card,
 @keyframes osintPop{from{opacity:0;transform:scale(.96) translateY(6px)}to{opacity:1;transform:none}}
 .osint-h{display:flex;justify-content:space-between;align-items:center;font-family:'Press Start 2P';font-size:var(--fs-px-micro);color:var(--gold);letter-spacing:.04em;
   margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--gold-dim)}
-/* P2: локальний виняток — розмір іконки-хрестика (✕) підібраний під тап-зону
-   закриття модалки, це не текст для читання. */
+/* Виняток зі шкали: хрестик закриття (✕) підібраний під тап-зону. */
 .osint-x{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;transition:color .15s}
 @media (hover:hover){.osint-x:hover{color:var(--hostile)}}
 .osint-name{font-weight:600;font-size:var(--fs-body);color:#fff;padding-bottom:12px;margin-bottom:6px}
 .osint-row{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
 .osint-row:last-of-type{border-bottom:none}
-/* P2: локальний виняток — розмір іконки-емодзі в круглому бейджі
-   пропорційний самому бейджу (30×30), не частина текстової шкали. */
+/* Виняток зі шкали: емодзі-іконка в круглому бейджі. */
 .osint-ico{flex:none;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   background:var(--panel2);border:1px solid var(--gold-dim);font-size:14px}
 .osint-rowbody{flex:1;min-width:0}
@@ -638,22 +600,21 @@ body.boss-mode .instr-portrait{border-color:var(--hostile)}
 body.boss-mode .dlg-name{color:var(--hostile)}
 body.boss-mode .dialogue-box{border-left-color:var(--hostile)}
 
-/* ===== Жива стрічка (задача 8.2) ===== */
+/* ===== Жива стрічка: typing-індикатор ===== */
 .msg.typing{display:flex;align-items:center;min-height:20px;padding:14px}
 .typing-dots{font-size:var(--fs-opt);color:var(--muted);letter-spacing:4px;animation:typingPulse 1s ease-in-out infinite}
 @keyframes typingPulse{0%,100%{opacity:.25}50%{opacity:.9}}
 
-/* ===== Розкриті наративи (задача 9): пам'ять вибору між фазами ===== */
+/* ===== Блок «РОЗКРИТІ НАРАТИВИ»: пам'ять вибору між фазами ===== */
 .narr-block{margin-top:18px;margin-bottom:14px}
 .ph-counter .narr-block{opacity:.7;margin-top:22px}
 .narr-label{font-family:'JetBrains Mono';font-size:var(--fs-label);color:var(--muted);letter-spacing:.1em;margin-bottom:8px}
 .narr-list{display:flex;flex-direction:column;gap:6px}
 .narr-card{background:var(--panel2);border:1px solid var(--line);padding:8px 10px;cursor:pointer;transition:border-color .15s}
 @media (hover:hover){.narr-card:hover{border-color:#3A4E73}}
-/* Задача 4, мікроанімація 3/5: stagger 40-60мс між картками при появі.
-   Без базового opacity:0 на .narr-card — анімація сама стартує з 0 у своєму
-   ж keyframe, тому картка лишається видимою, навіть якщо JS не встигне/не
-   зможе додати .narr-stagger (той самий урок, що з .screen.booting>* вище). */
+/* Стагер появи карток. Без базового opacity:0 на .narr-card: анімація сама
+   стартує з 0 у своєму keyframe, тож картка видима, навіть якщо JS не
+   встигне додати .narr-stagger. */
 .narr-card.narr-stagger{ animation:narrCardIn 220ms ease-out both; }
 @keyframes narrCardIn{ 0%{opacity:0;transform:translateY(6px)} 100%{opacity:1;transform:none} }
 .narr-card.narr-missed{border-color:var(--hostile);border-style:dashed}
@@ -668,15 +629,14 @@ body.boss-mode .dialogue-box{border-left-color:var(--hostile)}
 .narr-text.full{display:none;color:var(--text)}
 .narr-card.narr-open .narr-text.full{display:block}
 .narr-card.narr-open .narr-text.short{display:none}
-/* Задача 12, Б4: ярлик підтипу з'являється після фази 2 з коротким fade+slide,
-   щоб гравець побачив сам момент присвоєння. */
+/* Ярлик підтипу наративу з'являється після фази 2 з коротким fade+slide. */
 .narr-subtype{display:inline-block;font-family:'JetBrains Mono';font-size:var(--fs-label);color:var(--gold);
   letter-spacing:.04em;margin-top:5px;padding:2px 0;
   animation:narrSubtypeIn .4s ease both}
 .narr-subtype::before{content:"▸ "}
 @keyframes narrSubtypeIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
 
-/* ===== Бос-глітч (задача 8.3): RGB-зсув + jitter, 300-400мс кожні 3-5с ===== */
+/* ===== Бос-глітч: RGB-зсув + jitter, 300-400мс кожні 3-5с ===== */
 .glitch-active{
   position:relative;
   animation:glitchShift 70ms steps(2) infinite;
@@ -694,16 +654,11 @@ body.boss-mode .dialogue-box{border-left-color:var(--hostile)}
   *{animation:none!important;transition:none!important}
 }
 
-/* ===== Вбудований туторіал (задача 11): підказки Інструктора =====
-   Задача 12, блок А2: верхній правий кут, нижче HUD (top виставляє JS
-   за фактичною висотою топбару), щоб не перекривати шкалу впливу й довіру.
-   Косметична правка: панель раніше мала той самий фон var(--panel), що й
-   картки гри, і зливалась із контентом. Тепер це власний "радіоканал" —
-   теплий майже чорний фон із бурштиновим підмісом + тонкі діагональні
-   смуги передачі, і зліва суцільна золота смуга-маркер (::before, а не
-   border-left, щоб можна було анімувати саме її окремо від рамки панелі
-   при появі). Структура/логіка черги/фриз таймерів/позиціонування нижче
-   не чіпались. */
+/* ===== Туторіал: панель підказок Інструктора =====
+   На десктопі у верхньому правому куті під HUD (top виставляє JS за
+   висотою топбару), на мобілі bottom-sheet знизу. Стилізована під
+   «радіоканал»: теплий майже чорний фон із бурштиновим підмісом, тонкі
+   діагональні смуги передачі, золота смуга-маркер зліва. */
 .hint-panel{position:fixed;right:12px;z-index:150;
   width:min(300px, calc(100vw - 24px));
   display:flex;flex-direction:column;gap:8px;
@@ -728,24 +683,21 @@ body.boss-mode .dialogue-box{border-left-color:var(--hostile)}
 .hint-body{flex:1;min-width:0}
 .hint-name{font-family:'Press Start 2P';font-size:var(--fs-px-micro);color:var(--gold);margin-bottom:4px;letter-spacing:.05em}
 .hint-text{font-size:var(--fs-opt);line-height:1.5;color:var(--text)}
-/* Фікс 3: реальна тап-зона мін. 48px (padding+line-height рахуються в неї) */
+/* Реальна тап-зона мін. 48px (padding + line-height) */
 .hint-ok{align-self:flex-end;font-family:'Press Start 2P';font-size:var(--fs-px-micro);background:var(--gold);color:#12100A;border:2px solid #000;padding:8px 12px;cursor:pointer;
   min-height:48px;min-width:48px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
 .hint-focus{outline:3px solid var(--gold);outline-offset:3px;animation:hintPulse 1.2s ease-in-out infinite}
 @keyframes hintPulse{50%{outline-color:transparent}}
 .hint-panel{max-height:60vh;max-height:60dvh;overflow-y:auto}
 @media (max-width:560px){
-  /* Фікс 3: панель-бутоншит — position:fixed (вже було), bottom-офсет і
-     внутрішній відступ враховують home-індикатор/тулбар через safe-area. */
+  /* Bottom-sheet на мобілі: відступи враховують home-індикатор через safe-area. */
   .hint-panel{top:auto!important;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:12px;right:12px;width:auto;
     transform:translateY(130%);padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 }
 .finale-art{display:block;width:100%;max-width:520px;margin:0 auto 20px;aspect-ratio:16/9;object-fit:cover;border:2px solid var(--line);image-rendering:pixelated}
 
-/* ===== Глобальна кнопка фідбеку: fixed, знизу справа =====
-   Колір/рамка/glow тепер від .btn--feedback (блок 04) — власний
-   фіолетовий акцент тут прибрано, лишились тільки бокс-модель і позиція. */
-/* Фікс 3: bottom-офсет враховує safe-area (home-індикатор), тап-зона 48px */
+/* ===== Плаваюча кнопка фідбеку: fixed, знизу справа ===== */
+/* bottom-офсет враховує safe-area (home-індикатор), тап-зона 48px */
 .feedback-fab{position:fixed;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:60;font-family:'Press Start 2P';font-size:var(--fs-px-micro);letter-spacing:.04em;
   background:rgba(17,26,43,.82);text-decoration:none;
   padding:8px 7px;line-height:1.3;min-width:48px;min-height:48px;box-sizing:border-box;
@@ -756,13 +708,13 @@ body.boss-mode .dialogue-box{border-left-color:var(--hostile)}
    Клас body.timer-active тримають startTimer/startWildTimer, а не CSS :has() — так надійніше
    на старих мобільних браузерах і не залежить від таймінгу перерахунку стилів. */
 body.timer-active .feedback-fab{opacity:.55}
-/* На мобілі знизу зʼявляється hint-panel (bottom-sheet, задача 11/12). Поки вона відкрита,
-   піднімаємо кнопку над нею, щоб не перекривались. */
+/* Поки на мобілі відкрита hint-panel (bottom-sheet), кнопка піднімається
+   над нею, щоб не перекривались. */
 @media (max-width:560px){
   body:has(.hint-panel.show) .feedback-fab{bottom:240px}
 }
 
-/* ===== Перемикач мови (переклад «Іпсомнії» на англійську): fixed, знизу зліва,
+/* ===== Плаваюча кнопка мови: fixed, знизу зліва,
    дзеркальне розміщення до .feedback-fab. Живе поза #app, переживає всі render(). */
 .lang-fab{position:fixed;left:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:60;
   font-family:'Press Start 2P';font-size:var(--fs-px-micro);letter-spacing:.04em;
@@ -776,10 +728,7 @@ body.timer-active .lang-fab{opacity:.55}
   body:has(.hint-panel.show) .lang-fab{bottom:240px}
 }
 
-/* ===== design/crt-lab.html блок 07: PvP-звіт (реконсиляція ?pack= фіналу) =====
-   Scoped під .pvp-report, щоб не чіпати .stat/.rank в інших екранах
-   (phaseRank, звичайний finale() — там ці класи теж використовуються).
-   .pvp-row→.stat (рядки звірки технік), .stamp→.rank (вердикт ПРОБИТО/ВСТОЯВ). */
+/* ===== PvP-звіт pack-режиму: рядки по черзі, потім удар печаткою ===== */
 .pvp-report .stat{opacity:0;transform:translateY(8px)}
 .pvp-report .stat.on{animation:pvpRow 220ms ease-out 1 both}
 @keyframes pvpRow{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:none}}
@@ -794,8 +743,7 @@ body.timer-active .lang-fab{opacity:.55}
   .pvp-report .rank,.pvp-report .rank.hit{opacity:1;transform:none;animation:none}
 }
 
-/* Блок 09 "інтро ІПСОМНІЯ" тепер живе як окремий #ipso-boot одразу після
-   <body> (готовий блок HTML+CSS+JS) — старий #introTitle звідси прибрано. */
+/* Інтро-заставка «ІПСОМНІЯ» живе як окремий самодостатній блок #ipso-boot одразу після <body>. */
 </style>
 </head>
 <body>
@@ -966,6 +914,7 @@ body.timer-active .lang-fab{opacity:.55}
 })();
 </script>
 
+<!-- HUD. Живе поза #app і переживає всі render(); показується після вибору ролі (engine.js: pickRole). -->
 <div class="topbar" id="topbar" style="display:none">
   <div class="topbar-inner">
     <div class="tb-row">
@@ -990,28 +939,28 @@ body.timer-active .lang-fab{opacity:.55}
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- Єдиний контейнер екранів: engine.js render() підміняє його вміст -->
 <div class="wrap" id="app"></div>
 
-<!-- CRT-оверлеї (design-tokens.css, блок 01) -->
+<!-- CRT-оверлеї: fixed, з від'ємним z-index, під контентом (стилі в design-tokens.css) -->
 <div class="crt-warm" aria-hidden="true"></div>
 <div class="crt-noise" aria-hidden="true"></div>
 <div class="crt-scanlines" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
-<!-- Глітч-перехід (design/crt-lab.html, блок 08) — persistent оверлей на всю
-     сторінку, glitchTransition() у engine.js лише перемикає клас .run -->
+<!-- Глітч-перехід: persistent оверлей на всю сторінку, glitchTransition() у engine.js лише перемикає клас .run -->
 <div class="glitch-fx" aria-hidden="true">
   <span class="gf-band"></span><span class="gf-band"></span><span class="gf-band"></span><span class="gf-band"></span><span class="gf-band"></span>
   <span class="gf-rgb gf-r"></span><span class="gf-rgb gf-c"></span>
 </div>
 
-<!-- P2: локальний виняток — noscript-заглушка навмисно поза системою трьох
-     шрифтів гри (system-ui), інлайн-стиль лишено без var(). -->
+<!-- Заглушка без JS: навмисно на системному шрифті, без змінних гри -->
 <noscript>
   <div style="position:fixed;inset:0;z-index:999999;background:#0A0F1A;color:#E9EFF8;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:system-ui,sans-serif;font-size:15px;line-height:1.6">
     ІПСОМНІЯ працює на JavaScript.<br>Увімкни JS у налаштуваннях браузера і перезавантаж сторінку.
   </div>
 </noscript>
+<!-- Спершу дані, потім двигун: engine.js читає SCENARIOS/ROLES/WILD як глобальні змінні -->
 <script src="content.js"></script>
 <script src="engine.js"></script>
 </body>

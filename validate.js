@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 /* =====================================================================
-   IPSOMNIA · validate.js — пре-деплой лінтер контент-паку.
+   IPSOMNIA · CONTENT LINTER  (validate.js)
+   EN · Pre-deploy linter for the content pack. Loads content.js in an
+   isolated VM context (no browser needed) and checks UK/EN parity,
+   "answer tells" (the correct option must not stand out by length or
+   punctuation), naming canon and terminology. Run: node validate.js
+   Exit code 0 = clean, 1 = violations found (listed on stdout).
+   ---------------------------------------------------------------------
+   UA · Пре-деплой лінтер контент-паку.
    Запуск:  node validate.js [шлях/до/content.js]
    Вихід:   0 = чисто, 1 = знайдені порушення (список у stdout).
 
@@ -20,6 +27,8 @@
    П9  Формат днів тижня у m: укр. 2-літерні (Пн..Нд), англ. 3-літерні (Mon..Sun)
    П10 Термінологія EN: назва техніки в tech == назві ok-опції (без дрейфу
        типу Cause Swap / Cause Substitution)
+   П11 Глобальний тел довжини: max/min довжини опцій ≤ 1.6 (попередження)
+   П12 Кожна не-босівська операція має хоч один тонкий (tier:"sub") пост
 
    Source posts (поле t) лінтер НЕ читає на стиль — вони недоторканні.
    ===================================================================== */
@@ -198,7 +207,7 @@ function lenRatioAudit(L, arr) {
 lenRatioAudit('UK', UK); lenRatioAudit('EN', EN);
 
 /* ================= П12: кожна не-boss операція має tier:"sub" пост ===== */
-const KNOWN_MISSING_SUB = ['vyshneve'];   // існуючий баг, не фіксити в цьому спринті
+const KNOWN_MISSING_SUB = ['vyshneve'];   // відомий виняток: у «Вишневому» тонких постів нема свідомо, лише попередження
 function subTierAudit(L, arr) {
   arr.forEach(s => {
     if (s.boss) return;

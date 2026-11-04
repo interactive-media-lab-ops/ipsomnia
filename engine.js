@@ -1,25 +1,65 @@
 /* =====================================================================
-   ДВИГУН
+   IPSOMNIA · GAME ENGINE  (engine.js)
+   ---------------------------------------------------------------------
+   EN · A single-file, dependency-free game engine for "Ipsomnia", a
+   training game that teaches players to spot and counter hostile
+   information operations (IPSO). The engine is pure vanilla JS with no
+   build step: index.html loads content.js (data) and then this file.
+
+   The engine is content-agnostic. It never knows which operation it is
+   running; it only reads the `SCENARIOS` array exported by content.js.
+   Adding an operation means adding a data object, not touching this file.
+
+   Reading order for this file:
+     1. Config & feature flags
+     2. i18n: UI dictionary and language switching
+     3. Game state `S` and the audio module `SFX`
+     4. Scoring helpers (clamp / pen / gainAdj)
+     5. Instructor tutorial hints
+     6. HUD: influence bar, trust, streak, badges, toasts
+     7. Campaign progress (localStorage) and wave gating
+     8. Screen rendering primitives (render / glitch / boot flicker)
+     9. Timers (counter-narrative timer, wildcard timer, boss glitch)
+    10. Screens, in play order:
+        mode select → intro cutscene → role select → campaign map →
+        briefing → Phase 1 feed (+OSINT) → wildcard → Phase 2 technique →
+        Phase 3 audience → Phase 4 counter → After Action Report → finale
+    11. Pack mode (player-made operations passed via ?pack=)
+    12. Boot
+   ---------------------------------------------------------------------
+   UA · Двигун гри. Один файл, без фреймворків і білдів. Контент (операції,
+   ролі, wildcard-події, діалоги) живе окремо в content.js, двигун лише
+   читає масив SCENARIOS. Порядок секцій нижче відповідає порядку
+   проходження гри, читати можна згори вниз.
    ===================================================================== */
-const app = document.getElementById('app');
-/* Фіче-флаги / конфіг */
-const ENABLE_CREATOR = false;   // true → показати вхід у режим Червона команда (кріейтор). Loader ?pack= працює завжди.
-const SHOW_FEEDBACK_BTN = true;   // false → сховати і плаваючу кнопку ФІДБЕК, і CTA на фіналі
+
+/* =====================================================================
+   1. КОНФІГ І ФІЧЕ-ФЛАГИ
+   ===================================================================== */
+const app = document.getElementById('app');   // єдиний контейнер, у який render() вставляє поточний екран
+
+// true → на екрані режимів з'являється вхід у «Червону команду» (creator.html).
+// Завантажувач ?pack= при цьому працює завжди, незалежно від прапорця.
+const ENABLE_CREATOR = false;
+// false → ховає і плаваючу кнопку ФІДБЕК, і заклик на фінальному екрані.
+const SHOW_FEEDBACK_BTN = true;
 const FEEDBACK_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeDB4fjDf7NMWksBCaX9ReWMuy1Y6vgP0ns7f4aOEskyrynEA/viewform?usp=header';
-/* Кнопка-лінк на фідбек (фінальний CTA). Завжди нова вкладка — стан гри не переривається. */
+
+/** Кнопка-посилання на форму фідбеку. Завжди нова вкладка, щоб стан гри не переривався. */
 function feedbackLink(label){
   return '<a href="'+FEEDBACK_URL+'" target="_blank" rel="noopener" class="btn" style="text-decoration:none">'+label+'</a>';
 }
 /* =====================================================================
-   МОВА / i18n (перемикач «Іпсомнії» на англійську, Stage 1 брифу):
-   UI — словник РУШІЙНИХ рядків (усе, що пишеться прямо в engine.js:
-   заголовки фаз, кнопки, тости, лейбли). Контент операцій (SCENARIOS)
-   живе в content.js і перемикається окремо через applyLang() — сюди
-   не дублюється. Значення в словнику можуть бути функцією (для рядків
-   із динамічною частиною) або рядком; t(key,...args) віддає активну
-   мову з фолбеком на uk, якщо ключа немає.
+   2. МОВА / i18n
+   UI — словник рядків самого ДВИГУНА (заголовки фаз, кнопки, тости,
+   лейбли). Контент операцій (SCENARIOS) перекладається окремо, у
+   content.js через applyLang(), і сюди не дублюється.
+   Значення може бути рядком або функцією (коли в рядку є динамічна
+   частина). t(key, ...args) повертає активну мову з фолбеком на uk.
+   Активна мова зберігається у глобальній змінній LANG (content.js).
    ===================================================================== */
 const UI = {
+  /* ---- Українська (базова мова; фолбек для всіх ключів) ---- */
   uk: {
     trainingPlatform:"ПЛАТФОРМА ТРЕНУВАННЯ ІНФОСТІЙКОСТІ",
     modeLead:"Одне ядро зі спільною моделлю аудиторії та наративів. Режими працюють як контент-паки поверх нього.",
@@ -163,6 +203,7 @@ const UI = {
     aarMarkFalse:"✗ ХИБНА ТРИВОГА", aarMarkClean:"✓ ЧЕСНИЙ · ЧИСТО",
     aarDetailShow:"ДЕТАЛЬНИЙ РОЗБІР ▾", aarDetailHide:"ЗГОРНУТИ РОЗБІР ▴",
   },
+  /* ---- English (той самий набір ключів; відсутній ключ падає на uk) ---- */
   en: {
     trainingPlatform:"INFO-RESILIENCE TRAINING PLATFORM",
     modeLead:"One core with a shared audience and narrative model. Modes work as content packs on top of it.",
@@ -307,27 +348,35 @@ const UI = {
     aarDetailShow:"DETAILED BREAKDOWN ▾", aarDetailHide:"COLLAPSE BREAKDOWN ▴",
   }
 };
+/**
+ * Переклад рядка двигуна. Повертає значення з активної мови; якщо ключа
+ * там нема, бере український. Функціональні значення викликає з args.
+ */
 function t(key, ...args){
   const dict = (UI[LANG] || UI.uk);
   const v = (key in dict) ? dict[key] : UI.uk[key];
   return typeof v==='function' ? v(...args) : v;
 }
-/* currentScreen: закриття, що вміє перемалювати ЩО ЗАРАЗ на екрані під нову
-   мову. Кожен «верхньорівневий» екран (не вкладена подія типу wildcard/hint)
-   записує сюди себе на вході. toggleLang()/setLang() викликають це замість
-   повного перезавантаження сторінки — стан кампанії (S) не губиться. */
+/* currentScreen: замикання, яке вміє перемалювати поточний екран під нову
+   мову. Кожен «верхньорівневий» екран (не вкладена подія типу wildcard або
+   підказки) записує сюди себе на вході. setLang() викликає його замість
+   перезавантаження сторінки, тому стан кампанії (S) не губиться. */
 let currentScreen = null;
+
+/** Плаваюча кнопка мови показує мову, НА ЯКУ перемкне, а не поточну. */
 function updateLangFab(){
   const btn = document.getElementById('langFab');
   if(!btn) return;
   btn.textContent = LANG==='uk' ? 'EN' : 'УКР';
   btn.title = LANG==='uk' ? t('langFabToEn') : t('langFabToUk');
 }
-// Статичні елементи топбару поза render() (бренд, кнопка звуку, підписи шкали
-// впливу, фідбек-кнопка) — вони не перемальовуються через t() у render(),
-// тож синхронізуємо їх тут прямо. Викликається і з setLang() (перемикач),
-// і один раз при завантаженні (щоб стартова мова з localStorage не лишала
-// ці елементи українською, поки користувач не торкнеться перемикача).
+/**
+ * Статичні елементи топбару живуть в index.html поза #app (бренд, кнопки
+ * звуку, підписи шкали впливу, фідбек-кнопка), тож render() їх не
+ * перемальовує. Синхронізуємо їх мову тут напряму. Викликається з setLang()
+ * і один раз при завантаженні, щоб стартова мова з localStorage не лишала
+ * їх українською.
+ */
 function syncStaticLangUI(){
   const tbTitle = document.getElementById('tbTitle');
   if(tbTitle) tbTitle.innerHTML = (LANG==='en'?'IPSO':'ІПСО')+'<span class="x">·</span>'+(LANG==='en'?'MNIA':'МНІЯ');
@@ -342,31 +391,61 @@ function syncStaticLangUI(){
   if(fbFab){ fbFab.textContent = t('feedbackFabLabel'); fbFab.title = t('leaveFeedback'); }
   updateLangFab();
 }
+/** Перемикає мову гри «на льоту», без перезавантаження і без втрати прогресу. */
 function setLang(lang){
   if(lang!=='en' && lang!=='uk') return;
   if(lang===LANG) return;
   applyLang(lang);   // content.js: перевизначає SCENARIOS/ROLES/WILD/mapOps/BOSS_CHAR/DIALOGUE/BOSS_DIALOGUE/TUTORIAL
   try{ localStorage.setItem('ipsomnia_lang', lang); }catch(e){}
   document.documentElement.lang = lang;
-  // S.role — посилання на конкретний об'єкт у СТАРОМУ масиві ROLES; після
-  // перемикання масив інший, тому підхоплюємо роль за тим самим індексом.
+  // S.role посилається на об'єкт зі СТАРОГО масиву ROLES; після перемикання
+  // масив інший, тому підхоплюємо роль за тим самим індексом.
   if(S.role && S.roleIndex!=null && ROLES[S.roleIndex]) S.role = ROLES[S.roleIndex];
   syncStaticLangUI();
   if(document.getElementById('topbar') && document.getElementById('topbar').style.display!=='none') hud();
   if(typeof currentScreen==='function') currentScreen();
 }
 function toggleLang(){ setLang(LANG==='uk' ? 'en' : 'uk'); }
-const S = { role:null, i:0, infl:50, rep:100, repMin:100, streak:0, correct:0, total:0,
-            picks:new Set(), audience:null, cons:0, results:[], badges:[], usedWild:[], timerCut:0, lastTechPos:-1,
-            feed:[], osintLeft:2, osintTotal:2, osintDone:new Set(), op1Bad:false };
-let timerInt=null, wtimerInt=null;
+
+/* =====================================================================
+   3. СТАН ГРИ
+   S — єдиний об'єкт стану кампанії. Усе, що треба скинути через «ЩЕ РАЗ»,
+   живе тут (див. resetState). Поля з підкресленням (_op, _snap, _feed…)
+   є тимчасовими даними поточної операції/екрана.
+   Поза S навмисно тримаються прапорці сесії, які «ЩЕ РАЗ» не скидає:
+   introSeen, tutorialDone, hintsShown, firstOpId.
+   ===================================================================== */
+const S = {
+  role:null,            // обрана роль (об'єкт із ROLES); задає темп і ціну помилки
+  i:0,                  // індекс поточної операції у SCENARIOS
+  infl:50,              // СТІЙКІСТЬ, 4..100: головна шкала; 100 = повна перемога, <=8 = поразка в операції
+  rep:100, repMin:100,  // ДОВІРА (репутація) і її мінімум за кампанію
+  streak:0,             // серія чистих відповідей поспіль (множник гейнів ×1.5 від 3, ×2 від 5)
+  correct:0, total:0,   // лічильник точних рішень / усіх рішень для фіналу
+  picks:new Set(),      // індекси постів, позначених у фазі 1
+  audience:null,        // обрана аудиторія у фазі 3 (якщо операція її має)
+  cons:0,               // лічильник «гучного мовчання»: >=2 на фіналі запускає кризову подію
+  results:[],           // по одному запису на операцію: {tech, techOK, counterGood} для профілю вразливості
+  badges:[],            // назви технік, бейджі яких розкрито
+  usedWild:[],          // id wildcard-подій, які вже траплялись (не повторюються)
+  timerCut:0,           // скільки секунд wildcard відрізав від таймера контрходу
+  lastTechPos:-1,       // позиція правильної техніки в попередній операції (щоб не повторювалась)
+  feed:[],              // робоча стрічка поточної операції (копія sc.feed, можливо з мутацією)
+  osintLeft:2, osintTotal:2, osintDone:new Set(),   // ресурс OSINT-перевірок на операцію
+  op1Bad:false          // чи провалено операцію «Блекаут»: вмикає наратив-мутацію у фіналі
+};
+let timerInt=null, wtimerInt=null;   // інтервали таймера контрходу і таймера wildcard
+
 // Прихований дев-стрибок на операцію через URL (?op=N), без жодного UI.
 let pendingOp = parseInt(new URLSearchParams(location.search).get('op'))||0;
 if(pendingOp<1||pendingOp>SCENARIOS.length) pendingOp=0;
 
 /* =====================================================================
-   ЗВУК (задача 8). Файлів може не бути — .play() тоді відхиляється
-   промісом, catch() ковтає це мовчки, гра лишається повністю робочою.
+   ЗВУК. Модуль SFX інкапсулює весь аудіостан. Файлів може не бути:
+   .play() тоді відхиляється промісом, catch() ковтає це мовчки і гра
+   лишається повністю робочою без звуку.
+   Два незалежні перемикачі: muted (майстер 🔊, глушить усе) і musicMuted
+   (лише музика: ambient/boss/intro; короткі sfx лишаються).
    ===================================================================== */
 const SFX_FILES = {
   click:"assets/sfx/click.ogg", tick:"assets/sfx/tick.ogg", alert:"assets/sfx/alert.ogg",
@@ -395,14 +474,13 @@ const SFX = (function(){
       if(p>=1){ clearInterval(el._fadeInt); el._fadeInt=null; if(target===0){ try{ el.pause(); }catch(e){} } }
     }, 50);
   }
-  /* ФІКС 1: короткі sfx (click/tick/alert/gain/loss/badge/result) через Web
-     Audio — createBufferSource стартує без latency нового HTMLAudioElement
-     на кожен виклик. Музичні треки (ambient/boss/intro) лишаються на
-     <audio>+fadeTo вище, не займаємо.
-     Один AudioContext створюється одразу тут (створення контексту без
-     жесту користувача дозволене всюди — лише .resume() вимагає жест, і
-     він викликається саме в unlock() нижче), щоб префетч буферів стартував
-     негайно при завантаженні скрипта, а не чекав першого тапу. */
+  /* Короткі sfx (click/tick/alert/gain/loss/badge/result) граються через
+     Web Audio: createBufferSource стартує без затримки, яку дає новий
+     HTMLAudioElement на кожен виклик. Музичні треки лишаються на <audio>
+     із fadeTo вище.
+     AudioContext створюється одразу (без жесту користувача дозволено
+     створювати, лише .resume() вимагає жест, і він у unlock() нижче), щоб
+     буфери декодувались ще при завантаженні, а не після першого тапу. */
   let actx = null;
   const buffers = {};   // name -> AudioBuffer; заповнюється асинхронно, поки порожньо — фолбек на new Audio
   try{
@@ -446,7 +524,7 @@ const SFX = (function(){
     if(unlocked && ambient.paused) ambient.play().catch(()=>{});
     fadeTo(ambient, musicVol(), 900);
   }
-  // Вступна катсцена (задача 7): свій трек, окремий від геймплейного амбієнту.
+  // Вступна катсцена має свій трек, окремий від геймплейного амбієнту.
   function startIntroMusic(){
     introWanted = true;
     if(unlocked && introMusic.paused) introMusic.play().catch(()=>{});
@@ -498,11 +576,13 @@ const SFX = (function(){
   function toggleMusic(){ setMusicMuted(!musicMuted); return musicMuted; }
   return { play, startAmbient, startIntroMusic, crossfadeToBoss, crossfadeToAmbient, crossfadeIntroToAmbient, stopAmbient, toggle, toggleMusic, unlock, isMuted:()=>muted, isMusicMuted:()=>musicMuted };
 })();
+/** Кнопка 🔊/🔇 у топбарі: майстер-звук. */
 function toggleSfx(){
   SFX.unlock();
   const muted = SFX.toggle();
   const btn = document.getElementById('sfxBtn'); if(btn) btn.textContent = muted?'🔇':'🔊';
 }
+/** Кнопка ♪ у топбарі: лише музика, саунд-дизайн лишається. */
 function toggleMusic(){
   SFX.unlock();
   const off = SFX.toggleMusic();
@@ -516,8 +596,20 @@ document.addEventListener('click', function(e){
   if(e.target.closest('.btn,.opt,.mode,.msg,.osint-btn,.role-card,.intro-skip,.osint-x,.sfx-btn,.narr-card,.hint-panel')) SFX.play('click');
 }, true);
 
+/* =====================================================================
+   4. ЕКОНОМІКА: три помічники, через які проходять усі зміни шкали.
+   Базові числа живуть у місцях виклику (розпізнавання +5/+8, пропуск -6,
+   техніка +7/-8, контрхід від -12 до +12), а тут лише модифікатори ролі,
+   серії та довіри.
+   ===================================================================== */
+/** Стійкість ніколи не падає нижче 4 і не росте вище 100. */
 function clamp(v){return Math.max(4,Math.min(100,v))}
-function pen(v){ return Math.round(v * S.role.pen); } /* v від'ємне */
+/** Штраф (v від'ємне) помножений на коефіцієнт ролі: складніша роль платить дорожче. */
+function pen(v){ return Math.round(v * S.role.pen); }
+/**
+ * Гейн з урахуванням серії (×1.5 від 3 поспіль, ×2 від 5). Для контрходів
+ * (isCounter) низька довіра (<50) ріже гейн навпіл: «вам менше вірять».
+ */
 function gainAdj(v, isCounter){
   let m = 1;
   if(S.streak>=5) m=2; else if(S.streak>=3) m=1.5;
@@ -525,19 +617,23 @@ function gainAdj(v, isCounter){
   if(isCounter && S.rep<50){ v = Math.ceil(v/2); setTimeout(()=>toast(t('lowTrustPenalty'),'minus0'),1700); }
   return v;
 }
+
 /* =====================================================================
-   ВБУДОВАНИЙ ТУТОРІАЛ (задача 11): підказки Інструктора в операції 1.
-   Показуються один раз за тригер, і лише в першому проходженні кампанії
-   за сесію ("ЩЕ РАЗ" підказок не показує) — тому стан тримаємо поза S,
-   резет кампанії (resetState) його не чіпає, так само як introSeen.
-   Мапа-хаб (структура «відкрита мапа») дозволяє почати з БУДЬ-ЯКОЇ операції,
-   тому підказки більше не прив'язані до S.i===0 (позиція "перша в масиві") —
-   firstOpId запам'ятовує id операції, яку гравець реально обрав першою. */
+   5. ВБУДОВАНИЙ ТУТОРІАЛ: підказки Інструктора поверх першої операції.
+   Тексти і селектори підсвітки живуть у TUTORIAL (content.js).
+   Кожна підказка показується один раз за тригер і лише в першому
+   проходженні кампанії за сесію («ЩЕ РАЗ» підказок не повторює), тому
+   стан тримаємо поза S і resetState його не чіпає.
+   Мапа дозволяє почати з будь-якої операції, тому «перша операція» є не
+   S.i===0, а та, яку гравець реально обрав першою (firstOpId).
+   ===================================================================== */
 let tutorialDone = false;
 let firstOpId = null;
 function inFirstOp(){ return !!(SCENARIOS[S.i] && SCENARIOS[S.i].id === firstOpId); }
 const hintsShown = new Set();
-let hintQueue = [], hintBusy = false;
+let hintQueue = [], hintBusy = false;   // підказки показуються по одній, решта чекає в черзі
+
+/** Поставити підказку в чергу. force=true показує її навіть після завершення туторіалу (бос). */
 function showHint(id, force){
   if(hintsShown.has(id)) return;
   if(!force && tutorialDone) return;
@@ -550,11 +646,11 @@ function advanceHintQueue(){
   if(!hintQueue.length){ hintBusy=false; return; }
   hintBusy = true;
   const {id, text, sel} = hintQueue.shift();
-  // у фазі контрнаративу перша підказка морозить таймер, щоб не з'їдати час гравця.
-  // Заморозка стається до першого тіку, тому без підпису здається, що таймер "не запустився" —
-  // явно показуємо паузу, щоб це читалось як стан, а не поломка.
+  // Підказка на вході у фазу контрходу морозить таймер, щоб не з'їдати час гравця.
+  // Заморозка стається до першого тіку, тому без підпису здається, що таймер
+  // «не запустився»: явно показуємо паузу, щоб це читалось як стан, а не поломка.
   const freeze = (id==='counter_enter' && timerInt);
-  const freezeWild = (id==='wildcard_first' && wtimerInt);   // FIX 2б: той самий патерн заморозки для choice-wildcard
+  const freezeWild = (id==='wildcard_first' && wtimerInt);   // той самий патерн для таймера wildcard-вибору
   if(freeze){
     clearInterval(timerInt); timerInt=null;
     const note = document.querySelector('.timer .note'); if(note) note.textContent = t('pauseHintNote');
@@ -589,8 +685,8 @@ function advanceHintQueue(){
   document.body.appendChild(wrap);
   let focusEl = sel ? document.querySelector(sel) : null;
   if(focusEl) focusEl.classList.add('hint-focus');
-  // верхній правий кут, нижче HUD: top = фактичний низ топбару (якщо він видимий).
-  // На мобілі (≤560px) inline-top не виставляється — позицію повністю тримає CSS bottom.
+  // Панель у верхньому правому куті, одразу під топбаром (якщо він видимий).
+  // На мобілі (≤560px) inline-top не виставляється: позицію тримає CSS bottom.
   if(window.innerWidth > 560){
     const topbarEl = document.getElementById('topbar');
     const topOffset = (topbarEl && topbarEl.style.display!=='none') ? Math.max(8, topbarEl.getBoundingClientRect().bottom+8) : 16;
@@ -599,18 +695,27 @@ function advanceHintQueue(){
   requestAnimationFrame(()=>wrap.classList.add('show'));
 }
 
-/* design/crt-lab.html блок 06: setInfluence(inflEl, value) — портовано як є
-   (clamp, transform:scaleX, danger>75). value тут = edge = 100-S.infl, тобто
-   яка частка шкали зайнята ВОРОГОМ: це та сама величина, яку раніше показував
-   clip-path fill (видима ширина зліва), і саме вона має сенс для тривоги
-   ">75" — 75%+ шкали під ворогом, а не сирий S.infl (де високе значення
-   означає, що ГРАВЕЦЬ виграє, і "danger" на високому S.infl був би зворотним
-   до сенсу). */
+/* =====================================================================
+   6. HUD: шкала впливу, довіра, серія, бейджі, тости.
+   Топбар живе в index.html поза #app і переживає всі render().
+   ===================================================================== */
+/**
+ * Малює червоне заповнення шкали. value = частка шкали, яку займає ВОРОГ
+ * (100 - S.infl), тому тривожний стан .danger вмикається, коли ворог
+ * тримає понад 75% шкали.
+ */
 function setInfluence(inflEl, value){
   value = Math.max(0, Math.min(100, value));
   inflEl.querySelector('.infl-fill').style.transform = 'scaleX(' + value/100 + ')';
   inflEl.classList.toggle('danger', value > 75);
 }
+/**
+ * Єдина точка зміни СТІЙКОСТІ. Застосовує дельту, рухає лінію фронту й число
+ * на шкалі, показує тост і грає звук.
+ * @param delta  зміна (0 = лише перемалювати, без тосту)
+ * @param label  підпис тосту («Розпізнавання», «Інфовакуум»…)
+ * @param sfx    назва звуку; false = без звуку; undefined = gain/loss за знаком
+ */
 function setInfl(delta,label,sfx){
   S.infl = clamp(S.infl + delta);
   const m = document.getElementById('inflMarker'), n = document.getElementById('inflNum');
@@ -623,12 +728,14 @@ function setInfl(delta,label,sfx){
   if(delta!==0){
     toast((delta>0?'+':'')+delta+' '+(label||''), delta>0);
     if(sfx!==false) SFX.play(sfx || (delta>0?'gain':'loss'));
-    // відкладено на макротаск: launchAttack() викликає setInfl, а одразу після — phaseFeed(),
-    // чий render() чистить чергу підказок. Без затримки ця підказка вбивала б сама себе.
+    // Відкладено на макротаск: launchAttack() викликає setInfl, а одразу після
+    // phaseFeed(), чий render() чистить чергу підказок. Без затримки підказка
+    // вбивала б сама себе.
     if(delta<0 && inFirstOp()) setTimeout(()=>showHint('infl_drop'),0);
   }
   hud();
 }
+/** Єдина точка зміни ДОВІРИ (0..100). Кожна реальна зміна дає окремий тост. */
 function setRep(delta){
   if(!delta) return;
   const before = S.rep;
@@ -640,10 +747,11 @@ function setRep(delta){
   if(inFirstOp()) showHint('rep_change');
   hud();
 }
-/* Задача 4, мікроанімація 1/5: швидкий тік замість миттєвого стрибка числа.
-   Лише textContent-степінг (transform/opacity не застосовні до цифр), тому
-   поза списком "лише transform/opacity" — та й сам степінг дешевий, не
-   зачіпає layout/paint великих площ. */
+/**
+ * Швидкий «тік» числа від from до to замість миттєвого стрибка (3..8 кроків
+ * по 40мс). Поважає prefers-reduced-motion. Використовується для довіри в HUD
+ * і лічильників переглядів у стрічці.
+ */
 function tickValue(el, from, to, formatter){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches){ el.textContent = formatter(to); return; }
   if(from===to){ el.textContent = formatter(to); return; }
@@ -655,7 +763,8 @@ function tickValue(el, from, to, formatter){
     if(i>=steps) clearInterval(int);
   }, 40);
 }
-let _prevBadgeCount = 0;
+let _prevBadgeCount = 0;   // щоб анімувати «печатку» лише на щойно здобутому бейджі
+/** Перемальовує правий блок топбару: аватар ролі, серію, довіру, бейджі технік. */
 function hud(){
   const st=document.getElementById('hudStreak'), rp=document.getElementById('hudRep'), bd=document.getElementById('hudBadges');
   if(!st) return;
@@ -667,8 +776,8 @@ function hud(){
   const prevRep = parseInt((rp.textContent.match(/\d+/)||[0])[0]);
   tickValue(rp, prevRep, S.rep, v=>t('trustLabel', v));
   rp.className = 'rep'+(S.rep<50?' low':'');
-  // Задача 4, мікроанімація 2/5: бейдж щойно розкритої техніки — "печатка"
-  // (scale 1.15→1 + один glow-імпульс), лише на тому бейджі, що саме з'явився.
+  // Бейдж щойно розкритої техніки отримує анімацію «печатки» (scale 1.15→1
+  // плюс один glow-імпульс), і лише він один.
   bd.innerHTML = SCENARIOS.map(sc=>{
     const got = S.badges.includes(sc.badge);
     return '<span class="badge-ico'+(got?' got':'')+'">'+(got?'▣':'▢')+'</span>';
@@ -684,9 +793,10 @@ function hud(){
   }
   _prevBadgeCount = S.badges.length;
 }
-/* M5: черга тостів — активний тост дограє свій час, наступний чекає в масиві
-   й показується після нього, замість того щоб перебивати поточний. */
+/* Черга тостів: активний тост дограє свої 1.7с, наступний чекає в масиві
+   і показується після нього, а не перебиває поточний. */
 let toastQueue = [], toastBusy = false;
+/** Показати тост. plus=true/'plus' → зелений, інакше червоний. */
 function toast(txt,plus){
   toastQueue.push({txt,plus});
   if(!toastBusy) processToastQueue();
@@ -702,10 +812,13 @@ function processToastQueue(){
     setTimeout(processToastQueue, 400);
   }, 1700);
 }
-/* ---------- Прогрес кампанії (мапа-хаб, скасовує лінійну послідовність) ----------
-   Персистить у localStorage як плаский JSON-масив id пройдених операцій, без
-   дублів. Мапа читає цей масив при кожному рендері; коли всі не-босівські id
-   пройдені — бос переходить у boss-unlocked. */
+/* =====================================================================
+   7. ПРОГРЕС КАМПАНІЇ І ГЕЙТИНГ
+   Кампанія не лінійна: гравець обирає операції на мапі. Список пройдених
+   операцій зберігається в localStorage як плаский масив id без дублів.
+   Мапа читає його при кожному рендері; коли всі не-босівські операції
+   пройдені, відкривається бос.
+   ===================================================================== */
 function getCompleted(){
   try{ const raw = JSON.parse(localStorage.getItem('ipsomnia_completed')); return Array.isArray(raw) ? raw : []; }
   catch(e){ return []; }
@@ -718,11 +831,11 @@ function markCompleted(id){
 }
 function nonBossOps(){ return mapOps.filter(o=>o.id!==BOSS_ID); }
 function bossUnlocked(){ const done = getCompleted(); return nonBossOps().every(o=>done.includes(o.id)); }
-/* Правка плейтесту (п.5): кампанія відкривається хвилями. Спершу доступні перші
-   WAVE_SIZE (3) операції за складністю (порядок SCENARIOS: blackout→dirty_bomb —
-   від найлегшої до найважчої), наступна хвиля відкривається, коли попередня
-   пройдена повністю. Порядок береться зі SCENARIOS (складність), не з mapOps
-   (розкладка пінів). Групування суто engine-рівня — контент не чіпаємо. */
+
+/* Кампанія відкривається хвилями по WAVE_SIZE операцій. Порядок хвиль береться
+   зі SCENARIOS (від найлегшої до найважчої), а не з розкладки пінів mapOps.
+   Наступна хвиля відкривається, коли попередня пройдена повністю.
+   Групування суто на рівні двигуна, контент про хвилі не знає. */
 const WAVE_SIZE = 3;
 function nonBossOrder(){ return SCENARIOS.filter(s=>!s.boss).map(s=>s.id); }
 function opWave(id){ const i = nonBossOrder().indexOf(id); return i<0 ? 0 : Math.floor(i/WAVE_SIZE); }
@@ -733,29 +846,28 @@ function waveUnlocked(w){
   return order.every((id,i)=> Math.floor(i/WAVE_SIZE) >= w || done.includes(id));
 }
 function opUnlocked(id){ return waveUnlocked(opWave(id)); }
-function prog(){ const done = getCompleted().filter(id=>mapOps.some(o=>o.id===id)); document.getElementById('prog').textContent = done.length+'/'+mapOps.length; }
-/* ===== блок 08: glitch-перехід (портовано з design/crt-lab.html, блок 08 —
-   ефект — слайс-смуги + RGB-розсув на persistent .glitch-fx з index.html,
-   керовано --glitch-dur; CSS докладно в index.html поруч із .glitch-fx).
-   Сигнатура, виклик і синхронна семантика callback НЕ змінені відносно
-   попередньої версії — той самий архітектурний компроміс, що раніше був
-   у wipeTo(): render() має ~20 місць виклику, де код одразу після нього
-   синхронно чіпляється до щойно вставленого DOM (startTimer, initGlitch,
-   showHint-фокус, ревіл стрічки) — затримка справжньої підміни контенту
-   зламала б усі ці місця. Тому глітч грає ПОВЕРХ вже підміненого екрана
-   (звук/логіка не чекають), а callback() викликається одразу — за фактом
-   просто послідовність "запустити глітч, потім зробити те, що йде далі"
-   (у нас це bootScreen). Лаба відкладає swap() до ~45% тривалості глітчу —
-   у грі такої затримки немає й раніше не було, це свідомо не портовано.
-   ФІКС залишку глітчу на невузлових переходах: при порті з лаби загубився
-   `fx.addEventListener('animationend', ()=>fx.classList.remove('run'))`.
-   Без нього .run лишався на persistent-оверлеї НАЗАВЖДИ після першого ж
-   вузлового глітчу — анімація не "видалена", а вічно "finished/filling",
-   і будь-який наступний forced reflow (void screen.offsetWidth в
-   bootScreen(), а він виконується на КОЖНОМУ render(), не лише вузловому)
-   міг змусити браузер пересинхронізувати/перемалювати цей завислий шар —
-   звідси однокадровий зсув/блим на невузлових переходах. Причина: .run
-   ніколи не знімався з .glitch-fx після завершення анімації. */
+/** Лічильник «пройдено / усього» в топбарі. */
+function prog(){
+  const done = getCompleted().filter(id=>mapOps.some(o=>o.id===id));
+  document.getElementById('prog').textContent = done.length+'/'+mapOps.length;
+}
+
+/* =====================================================================
+   8. ПРИМІТИВИ РЕНДЕРУ
+   render() підміняє вміст #app; поверх нього два CRT-ефекти:
+   bootScreen (флікер «термінал прокидається» на кожному екрані) і
+   glitchTransition (слайс-смуги + RGB-розсув, лише на вузлових переходах).
+   ===================================================================== */
+/**
+ * Глітч-перехід. Ефект грає на persistent-оверлеї .glitch-fx (index.html)
+ * ПОВЕРХ уже підміненого екрана, а callback викликається синхронно.
+ * Це свідомий компроміс: у ~20 місцях код одразу після render() чіпляється
+ * до щойно вставленого DOM (таймери, фокус підказки, ревіл стрічки), тож
+ * відкладати підміну контенту не можна.
+ * Клас .run обов'язково знімається після animationend: інакше анімація
+ * «зависає» у стані filling, і будь-який наступний forced reflow дає
+ * однокадровий блим на звичайних переходах.
+ */
 function glitchTransition(callback){
   const fx = document.querySelector('.glitch-fx');
   if(fx){
@@ -764,19 +876,14 @@ function glitchTransition(callback){
   }
   callback();
 }
-/* ===== design/crt-lab.html блок 02: «термінал прокидається» (портовано як є) =====
-   screen — контейнер із класами .boot-line всередині. Тут .boot-line немає
-   окремим класом ніде в грі, тож замість нього стагеруємо ПРЯМІ діти
-   .screen (селектор .screen.booting>* у CSS) — кожен екран і так складений
-   з верхньорівневих блоків (eyebrow/h2/task/картки/кнопки), вони й стають
-   "рядками", що виринають зверху вниз. Тексти рядків скорочено ефективно
-   до 3-4: далі індекс стагера не росте, решта дітей виринає одночасно
-   з четвертим — довгі екрани не розтягують анімацію.
-   КРИТИЧНО: .booting знімається з .screen одразу після стагера. Без цього
-   CSS-правило .screen.booting>*{opacity:0} лишається живим live-селектором
-   і ховає НАЗАВЖДИ будь-яку кнопку, яку код дописує в .screen ПІЗНІШЕ через
-   insertAdjacentHTML (кнопки "ДАЛІ" у resolveFeed/pickTech/pickCounter/
-   wildPick — саме тому на фазах 1-2 зникала нижня кнопка дії). */
+/**
+ * «Термінал прокидається»: прямі діти .screen виринають зверху вниз зі
+ * стагером (CSS: .screen.booting>*). Індекс стагера обмежено 3-4 «рядками»,
+ * далі все з'являється одночасно, щоб довгі екрани не розтягували анімацію.
+ * ВАЖЛИВО: .booting знімається одразу після стагера, інакше правило
+ * .screen.booting>*{opacity:0} назавжди ховає кнопки, які код дописує
+ * пізніше через appendActionBtn.
+ */
 function bootScreen(screen){
   screen.classList.remove('booting');
   void screen.offsetWidth;              // reflow → перезапуск анімації
@@ -793,11 +900,7 @@ function bootScreen(screen){
   });
   setTimeout(() => screen.classList.remove('booting'), maxDelay + 160);
 }
-/* Задача 4, мікроанімація 3/5: картки "РОЗКРИТІ НАРАТИВИ" (.narr-card) —
-   stagger 40-60мс між картками при появі екрана (єдине місце в грі, де
-   кілька карток рендеряться одним блоком без власного живого reveal —
-   стрічка фази 1 вже має свій, набагато повільніший, навмисний таймінг
-   "живих" повідомлень, його не займаємо). */
+/** Картки «РОЗКРИТІ НАРАТИВИ» виринають зі стагером 50мс (стрічка фази 1 має свій, повільніший ревіл). */
 function staggerNarrCards(screen){
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   screen.querySelectorAll('.narr-card').forEach((el,i)=>{
@@ -808,30 +911,69 @@ function staggerNarrCards(screen){
     el.classList.add('narr-stagger');
   });
 }
-/* Глітч-перехід (блок 08) звужено на 4 вузлові точки кампанії (правка "точкова
-   правка застосування глітчу"): тайтл→гра, катсцена→мапа, розбір операції→мапа,
-   вхід у фінал. Усе інше (бріфінг, фаза→фаза, фаза→розбір) — простий рендер
-   із тим самим boot-флікером (блок 02, не глітч), як було до інтеграції глітчу.
-   render(html, glitch) — другий параметр true лише на цих 4 викликах, дефолт
-   false. Прапорець прокидається у виклик, не змінює саму glitchTransition(). */
-function render(html, glitch){ stopAllTimers(); stopBossGlitch(); document.querySelectorAll('.osint-modal').forEach(e=>e.remove()); document.querySelectorAll('.hint-panel').forEach(e=>e.remove()); document.querySelectorAll('.hint-focus').forEach(e=>e.classList.remove('hint-focus')); hintQueue=[]; hintBusy=false; toastQueue=[]; app.innerHTML = '<div class="screen">'+html+'</div>'; app.scrollTop = 0; /* фікс 3: скрол тепер у #app, не в body/window */ const boot=()=>{ const scr=app.querySelector('.screen'); bootScreen(scr); staggerNarrCards(scr); }; if(glitch) glitchTransition(boot); else boot(); }
-/* Задача 1: кнопки "ДАЛІ" дописуються в .screen ПІЗНІШЕ, окремо від render().
-   Якщо .booting ще не встиг злетіти з .screen (таймер у bootScreen), нова
-   кнопка теж матиме opacity:0 від .screen.booting>* — тому знімаємо клас
-   тут прямо, а не покладаємось лише на таймер. Без затримки, без гонки. */
+/**
+ * Головна функція показу екрана. Повністю підміняє вміст #app і прибирає все,
+ * що жило поверх попереднього екрана: таймери, бос-глітч, OSINT-модалки,
+ * підказки, черги тостів і підказок.
+ * @param html    розмітка екрана
+ * @param glitch  true лише на 4 вузлових переходах кампанії (тайтл→гра,
+ *                катсцена→мапа, розбір→мапа, вхід у фінал); решта екранів
+ *                отримує тільки boot-флікер.
+ */
+function render(html, glitch){
+  stopAllTimers();
+  stopBossGlitch();
+  document.querySelectorAll('.osint-modal').forEach(e=>e.remove());
+  document.querySelectorAll('.hint-panel').forEach(e=>e.remove());
+  document.querySelectorAll('.hint-focus').forEach(e=>e.classList.remove('hint-focus'));
+  hintQueue=[]; hintBusy=false; toastQueue=[];
+  app.innerHTML = '<div class="screen">'+html+'</div>';
+  app.scrollTop = 0;   // скролиться #app, не body/window
+  const boot=()=>{ const scr=app.querySelector('.screen'); bootScreen(scr); staggerNarrCards(scr); };
+  if(glitch) glitchTransition(boot); else boot();
+}
+/**
+ * Дописує кнопку «ДАЛІ» (або інший блок) у низ поточного екрана після відповіді.
+ * Знімає .booting напряму: якщо таймер bootScreen ще не встиг це зробити,
+ * нова кнопка лишилась би з opacity:0 назавжди.
+ */
 function appendActionBtn(html){
   const scr = app.querySelector('.screen');
   scr.classList.remove('booting');
   scr.insertAdjacentHTML('beforeend', html);
 }
-function shuffled(n){ const a=[...Array(n).keys()]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
-function stopAllTimers(){ if(timerInt){clearInterval(timerInt);timerInt=null;} if(wtimerInt){clearInterval(wtimerInt);wtimerInt=null;} if(S._viewsInt){clearInterval(S._viewsInt);S._viewsInt=null;} document.body.classList.remove('timer-active'); }
+/** Випадкова перестановка індексів 0..n-1 (Фішер-Єйтс). */
+function shuffled(n){
+  const a=[...Array(n).keys()];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+/** Зупиняє всі ігрові інтервали: таймер контрходу, таймер wildcard, тікер переглядів. */
+function stopAllTimers(){
+  if(timerInt){ clearInterval(timerInt); timerInt=null; }
+  if(wtimerInt){ clearInterval(wtimerInt); wtimerInt=null; }
+  if(S._viewsInt){ clearInterval(S._viewsInt); S._viewsInt=null; }
+  document.body.classList.remove('timer-active');
+}
 
-/* Задача 12, блок А: таймер рахує залишок від реального часу (Date.now()),
-   а не декрементом на кожне спрацювання setInterval. У фоновій/неактивній
-   вкладці браузер тротлить інтервали, тож раніше "left--" рахував ЧИСЛО
-   тіків замість секунд, і таймер відставав або зависав. Тепер, скільки б
-   тіків не пропустив тротлінг, наступний виклик доганяє реальний залишок. */
+/* =====================================================================
+   9. ТАЙМЕРИ
+   ===================================================================== */
+/**
+ * Таймер інфовакууму у фазі контрходу. Рахує залишок від реального часу
+ * (Date.now()), а не декрементом на кожен тік: у фоновій вкладці браузер
+ * тротлить setInterval, і лічильник тіків відставав би від секунд.
+ * Побічні ефекти (звук тіку, штраф -2 кожні 9с) прив'язані до кожної цілої
+ * секунди, яку таймер перетнув, і агрегуються, якщо тротлінг пропустив
+ * кілька секунд за раз (один тост і один звук на весь діапазон).
+ * На нулі тиск не зникає: вмикається режим «ВАКУУМ» (-5 кожні 5с, довіра -3
+ * один раз), поки гравець не відповість.
+ * @param seconds  скільки лишилось (при відновленні після паузи менше за total)
+ * @param total    повна тривалість, для ширини смужки
+ */
 function startTimer(seconds, total){
   document.body.classList.add('timer-active');   // притлумлює фідбек-кнопку на час активної фази
   total = total || seconds;   // total лишається сталим при відновленні після заморозки підказкою
@@ -845,11 +987,11 @@ function startTimer(seconds, total){
     const left = Math.max(0, seconds-elapsed);
     S._timeLeft = left;
     if(left<=0){
-      // FIX 1: на нулі тиск не зникає — вакуум-режим триває, поки гравець не відповість
+      // Режим вакууму: триває, поки гравець не відповість
       if(!vacuumStarted){
         vacuumStarted = true;
-        setRep(-3);   // жива довіра: промовчав у вакуумі
-        if(S._op) S._op.timedOut = true;   // PATCH B1: таймаут = помилка
+        setRep(-3);   // промовчав у вакуумі: довіра падає
+        if(S._op) S._op.timedOut = true;   // таймаут рахується як помилка в ранзі операції
         if(el) el.textContent = t('vacuumWord');
         if(bar) bar.style.width = '0%';
         if(box) box.classList.add('hot');
@@ -857,19 +999,18 @@ function startTimer(seconds, total){
       }
       const vacElapsed = elapsed - seconds;
       const dueTicks = Math.floor(vacElapsed/5);
-      // PATCH: агрегація catch-up тостів — один виклик на всі пропущені тіки замість N
+      // один виклик на всі пропущені 5-секундні тіки замість N тостів
       const n = dueTicks - vacuumTicksApplied;
-      if(n>0){ vacuumTicksApplied = dueTicks; setInfl(pen(-5)*n,t('vacuumLabel')); }   // PATCH B2: буст вакууму
+      if(n>0){ vacuumTicksApplied = dueTicks; setInfl(pen(-5)*n,t('vacuumLabel')); }
       lastLeft = 0;
       return;
     }
     if(el) el.textContent = left;
     if(bar) bar.style.width = (left/total*100)+'%';
     if(left<=12 && box) box.classList.add('hot');
-    // побічні ефекти прив'язані до КОЖНОЇ цілої секунди, яку таймер щойно перетнув —
-    // навіть якщо тротлінг фонової вкладки "проскочив" одразу кілька секунд за раз.
-    // PATCH: тик-звук і штраф інфовакууму агрегуються — один тост/один звук на весь
-    // пропущений діапазон, а не по одному на кожну перетнуту секунду.
+    // Проходимо кожну цілу секунду між попереднім і поточним тіком: тік-звук
+    // в останні 10с, штраф кожні 9с. Якщо перетнуто понад 3 секунди за раз
+    // (тротлінг), звук грає один раз.
     const spanCovered = lastLeft - left;
     let count = 0, tickPlayed = false;
     for(let s=lastLeft-1; s>=left; s--){
@@ -885,7 +1026,10 @@ function startTimer(seconds, total){
   timerInt = setInterval(tick, 1000);
 }
 
-/* ---------- Бос-глітч (задача 8.3): RGB-зсув + jitter, 300-400мс кожні 3-5с ---------- */
+/* ---------- Бос-глітч: RGB-зсув + jitter на 300-400мс кожні 3-5с ----------
+   Вішається на елементи з класом .glitch-target (заголовок операції боса,
+   банер, пін на мапі, портрет боса). Навмисно активний і при
+   prefers-reduced-motion: це частина образу загрози. */
 let glitchTimeout = null;
 function initGlitch(selector){
   stopBossGlitch();
@@ -904,7 +1048,13 @@ function stopBossGlitch(){
   document.querySelectorAll('.glitch-active').forEach(el=>el.classList.remove('glitch-active'));
 }
 
-/* ---------- Екрани ---------- */
+/* =====================================================================
+   10. ЕКРАНИ, у порядку проходження гри
+   ===================================================================== */
+
+/* ---------- Екран режимів (тайтл) ----------
+   Один живий режим («ІНФОСТІЙКІСТЬ»), решта показані як анонс. Вхід у
+   «Червону команду» відкривається прапорцем ENABLE_CREATOR. */
 function modeSelect(){
   currentScreen = modeSelect;
   document.getElementById('topbar').style.display='none';
@@ -945,21 +1095,21 @@ function modeSelect(){
     </div>`);
 }
 
-/* =====================================================================
-   ВСТУПНА КАТСЦЕНА · Інструктор (задача 7)
-   ===================================================================== */
-let introSeen = false;          // показуємо один раз за сесію, без localStorage
-let introState = null;          // {line, full, pos, done, typeInt}
+/* ---------- Діалогова катсцена ----------
+   Одна система на дві сцени: вступ з Інструктором (перед вибором ролі) і
+   катсцена перед босом. Портрет із 4 кадрів: 1 спокій, 2-3 говоріння,
+   4 моргання. Текст друкується typewriter-ефектом, тап по панелі добиває
+   репліку або переходить до наступної, SKIP завершує всю сцену. */
+let introSeen = false;          // вступ показуємо один раз за сесію («ЩЕ РАЗ» не повторює), без localStorage
+let introState = null;          // стан поточної репліки: {line, full, pos, done, typeInt}
 let talkInt = null, talkIdx = 0;
-const talkSeq = [1,2,3,2];
+const talkSeq = [1,2,3,2];      // цикл кадрів рота під час говоріння
 let blinkTimeout = null;
 let instrImgOk = true;
 
-/* Портрет інструктора. Якщо файлів instructor_N.png ще нема — лишається
-   піксельний силует, бо onerror лише ховає <img>, нічого не ламає.
-   PATCH F2: раніше onerror будь-якого кадру (найчастіше 4-го, блимання)
-   ховав img назавжди. Тепер кожен кадр перевіряється окремо через
-   preloadFrames, і відсутність одного кадру не вбиває анімацію решти. */
+/* Кадри портрета попередньо завантажуються і перевіряються кожен окремо:
+   якщо якогось файлу нема, анімація просто не перемикається на нього, а не
+   ховає портрет назавжди. Якщо нема навіть кадру 1, лишається CSS-силует. */
 let framesOK = {};   // src -> true після успішного завантаження
 function preloadFrames(frames){
   framesOK = {};
@@ -1006,12 +1156,12 @@ function clearIntroTimers(){
   if(blinkTimeout){ clearTimeout(blinkTimeout); blinkTimeout=null; }
 }
 
-/* Задача 12, Г9: та сама діалогова система обслуговує і вступ, і катсцену
-   перед босом — activeDialogue/dialogueDoneCb визначають, які репліки
-   програти і що робити після (roleSelect чи запуск операції боса). */
+/* Параметри активної сцени: які репліки грати, чий портрет показувати і що
+   робити після завершення (roleSelect для вступу, startScenario для боса). */
 let activeDialogue = DIALOGUE;
 let dialogueDoneCb = roleSelect;
 let activePortrait = INSTRUCTOR.frames, activeSpeaker = t('commanderName');
+/** Малює екран діалогу з поточних active* і запускає першу репліку. */
 function renderDialogueScreen(glitch){
   preloadFrames(activePortrait);
   instrImgOk = true;
@@ -1029,16 +1179,16 @@ function renderDialogueScreen(glitch){
     </div>`, !!glitch);
   playLine(0);
 }
+/** Кнопка «ГРАТИ»: вступна катсцена, або одразу вибір ролі, якщо її вже бачили цієї сесії. */
 function startIntro(){
-  if(introSeen){ roleSelect(true); return; }   // вузлова точка 1: тайтл → гра (катсцену вже бачили цю сесію)
-  SFX.startIntroMusic();   // окремий трек для катсцени, стартує разом із нею, не чекає вибору ролі
+  if(introSeen){ roleSelect(true); return; }   // вузловий перехід тайтл → гра
+  SFX.startIntroMusic();   // трек катсцени стартує разом із нею, не чекає вибору ролі
   activeDialogue = DIALOGUE;
   dialogueDoneCb = ()=>{ introSeen=true; roleSelect(); };
   activePortrait = INSTRUCTOR.frames; activeSpeaker = t('commanderName');
-  renderDialogueScreen(true);   // вузлова точка 1: тайтл → гра
+  renderDialogueScreen(true);   // вузловий перехід тайтл → гра
 }
-/* Тригер: клік «ФІНАЛЬНА ОПЕРАЦІЯ» на мапі, перед запуском операції боса.
-   Не вузлова точка (мапа→катсцена боса нема в переліку) — глітч не передаємо. */
+/** Катсцена перед босом. Тригер: клік по піну «ФІНАЛЬНА ОПЕРАЦІЯ» на мапі. Без глітчу: це не вузловий перехід. */
 function startBossIntro(){
   S.i = SCENARIOS.findIndex(sc=>sc.boss);
   activeDialogue = BOSS_DIALOGUE;
@@ -1050,6 +1200,7 @@ function startBossIntro(){
   const p = document.getElementById('instrPortrait');
   if(p){ p.classList.add('glitch-target'); initGlitch('.glitch-target'); }
 }
+/** Друкує репліку idx по символу (25мс), анімуючи рот; по завершенні finishLine(). */
 function playLine(idx){
   clearIntroTimers();
   introState = { line: idx, full: activeDialogue[idx], pos: 0, done: false, typeInt: null };
@@ -1070,6 +1221,7 @@ function finishLine(){
   scheduleBlink();
   const nextEl = document.getElementById('dlgNext'); if(nextEl) nextEl.classList.add('show');
 }
+/** Тап по панелі: недодрукована репліка добивається миттєво, готова переходить до наступної. */
 function advanceDialogue(){
   if(!introState) return;
   if(!introState.done){
@@ -1080,12 +1232,14 @@ function advanceDialogue(){
   const next = introState.line + 1;
   if(next < activeDialogue.length) playLine(next); else skipIntro();
 }
-/* Один обробник на SKIP і на природне завершення репліки: обидва просто
-   переходять до того, що призначено в dialogueDoneCb. */
+/** Один вихід із сцени і для SKIP, і для природного завершення: робить те, що призначено в dialogueDoneCb. */
 function skipIntro(){ clearIntroTimers(); dialogueDoneCb(); }
 
-/* Портрет ролі. Якщо файлу в assets ще нема — лишається піксельний плейсхолдер
-   (ініціали на кольоровому квадраті), бо onerror прибирає лише <img>. */
+/* ---------- Вибір ролі ----------
+   Роль задає економіку: множник штрафів (pen), час на контрхід (time)
+   і ймовірність wildcard-події (wild). Дані в ROLES (content.js). */
+
+/** Портрет ролі. Якщо файлу в assets нема, лишається піксельний плейсхолдер з ініціалами (onerror прибирає лише <img>). */
 function avatarHTML(r, cls){
   return '<span class="avatar '+(cls||'')+'" style="--acol:'+r.col+'">'
        +   '<span class="avatar-ini">'+r.ini+'</span>'
@@ -1116,19 +1270,19 @@ function roleSelect(glitch){
 }
 function pickRole(i){
   S.role = ROLES[i]; S.roleIndex = i;
-  document.getElementById('topbar').style.display='block';
+  document.getElementById('topbar').style.display='block';   // HUD з'являється лише з цього моменту
   hud();
-  SFX.crossfadeIntroToAmbient();   // перехід на мапу кампанії: кросфейд intro.ogg → ambient.ogg
-  if(pendingOp){ const idx = pendingOp-1; pendingOp = 0; if(SCENARIOS[idx]){ selectOp(idx); return; } }
+  SFX.crossfadeIntroToAmbient();   // intro.ogg → ambient.ogg
+  if(pendingOp){ const idx = pendingOp-1; pendingOp = 0; if(SCENARIOS[idx]){ selectOp(idx); return; } }   // дев-стрибок ?op=N
   campaignMap();
 }
 
-/* Єдина точка входу на мапу — і після вибору ролі (вузлова точка 2), і після
-   розбору операції через nextScenario() (вузлова точка 3). Обидва виклики
-   мають глітчити, тому прапорець тут не параметр виклику, а завжди true.
-   Мапа-хаб (структура «відкрита мапа», скасовує лінійну послідовність):
-   усі не-босівські операції видимі й клікабельні одразу, незалежно від S.i.
-   Бос — єдиний замкнений пін, читає прогрес із localStorage (getCompleted). */
+/* ---------- Мапа кампанії ----------
+   Хаб гри. Сюди гравець потрапляє після вибору ролі й після кожного розбору
+   операції; обидва переходи вузлові, тому глітч тут завжди true.
+   Піни беруться з mapOps (content.js): координати у % від картинки мапи.
+   Стан піна: locked (хвиля ще закрита) / available / done / cur (бос).
+   Бос читає прогрес із localStorage і відкривається, коли пройдено все. */
 function campaignMap(cliff){
   currentScreen = ()=>campaignMap(cliff);
   prog();
@@ -1142,7 +1296,7 @@ function campaignMap(cliff){
         const idx = SCENARIOS.findIndex(sc=>sc.id===o.id);
         const isBoss = o.id===BOSS_ID;
         const isDone = done.includes(o.id);
-        // п.5: не-босівські операції гейтяться хвилями
+        // звичайні операції гейтяться хвилями, бос відкривається після всіх
         const opOpen = isBoss ? unlocked : opUnlocked(o.id);
         const st = isBoss ? (!unlocked ? 'locked' : (isDone?'done':'cur')) : (!opOpen ? 'locked' : (isDone?'done available':'available'));
         const clickable = opOpen;
@@ -1159,30 +1313,36 @@ function campaignMap(cliff){
     ${cliff?`<div class="cliff"><b>${t('meanwhile')}</b>${cliff}</div>`:''}`, true);
   if(unlocked) initGlitch('.glitch-target');
 }
-function selectOp(idx){ S.i = idx; const sc = SCENARIOS[idx]; if(sc.boss) startBossIntro(); else startScenario(); }
+/** Клік по піну на мапі. Бос іде через катсцену, решта одразу в бріфінг. */
+function selectOp(idx){
+  S.i = idx;
+  const sc = SCENARIOS[idx];
+  if(sc.boss) startBossIntro(); else startScenario();
+}
 
-/* glitch — лише для pack-режиму (bootPack передає true: вузлова точка "вхід
-   у гру" без тайтла/катсцени). У звичайному потоці (кнопка на мапі, бос,
-   replayOp) виклик без аргументу — бріфінг лишається простим рендером. */
+/* ---------- Бріфінг операції ----------
+   Ініціалізує все, що стосується однієї операції, і показує бриф.
+   glitch=true лише з pack-режиму (вхід у гру без тайтла і катсцени);
+   зі звичайної мапи, боса і replayOp бріфінг рендериться без глітчу. */
 function startScenario(glitch){
   currentScreen = ()=>startScenario();
   prog();
   const sc = SCENARIOS[S.i];
-  if(firstOpId===null) firstOpId = sc.id;   // мапа-хаб: тутор прив'язаний до реально першої зіграної операції, не до S.i===0
+  if(firstOpId===null) firstOpId = sc.id;   // туторіал прив'язаний до реально першої зіграної операції
   S.picks = new Set(); S.audience = null; S.timerCut = 0;
-  // робоча стрічка операції. Мутація (задача 6): якщо операцію 1 закрито погано,
-  // у фінал додається наратив-відлуння блекауту як звичайний тонкий наратив.
+  // Робоча стрічка операції. Мутація: якщо «Блекаут» закрито погано, у фінал
+  // додається наратив-відлуння (sc.mutation) як звичайний тонкий наратив.
   S.feed = sc.feed.slice();
   if(sc.mutation && S.op1Bad) S.feed.push(sc.mutation);
-  // ресурс OSINT (задача 4, задача 12 Д10): 2 перевірки джерела на операцію, у боса 3
+  // ресурс OSINT: 2 перевірки джерела на операцію, у боса 3
   S.osintTotal = sc.boss ? 3 : 2;
   S.osintLeft = S.osintTotal; S.osintDone = new Set();
-  // пам'ять вибору для блоку «РОЗКРИТІ НАРАТИВИ» (задача 9), наповнюється у resolveFeed
+  // пам'ять вибору для блоку «РОЗКРИТІ НАРАТИВИ», наповнюється у resolveFeed
   S._recognized = [];
-  S._techAnswered = false;   // підтипи наративів з'являються лише після фази 2 (задача 12, Б4)
-  // дані для рангу поточної операції
+  S._techAnswered = false;   // підтипи наративів показуються лише після відповіді у фазі 2
+  // підсумки поточної операції для рангу і AAR
   S._op = {found:0, total:0, false:0, miss:0, techOK:false, counter:'', timeLeft:0, timeTotal:0};
-  // знімок стану на старті операції — щоб «перепройти» без скидання кампанії
+  // знімок стану на старті операції, щоб «перепройти» без скидання кампанії
   S._snap = { infl:S.infl, rep:S.rep, repMin:S.repMin, streak:S.streak, correct:S.correct, total:S.total,
               cons:S.cons, resultsLen:S.results.length, badges:S.badges.slice(),
               usedWild:S.usedWild.slice(), lastTechPos:S.lastTechPos };
@@ -1198,9 +1358,10 @@ function startScenario(glitch){
   if(sc.boss) showHint('boss_brief', true);
 }
 
+/** Кнопка «ВІДКРИТИ СТРІЧКУ»: стартовий удар по стійкості (sc.attack × множник ролі), далі фаза 1. */
 function launchAttack(){
   const sc = SCENARIOS[S.i];
-  // жива довіра (задача 10): другий поріг, <30 -> вкид на старті операції б'є сильніше
+  // другий поріг довіри: <30 робить стартовий вкид на 25% сильнішим
   const lowTrust = S.rep < 30;
   const atk = lowTrust ? Math.round(sc.attack*1.25) : sc.attack;
   setInfl(pen(atk),t('attackLaunched'),'alert');
@@ -1208,15 +1369,21 @@ function launchAttack(){
   phaseFeed();
 }
 
+/* ---------- ФАЗА 1 · РОЗПІЗНАЙ ----------
+   Стрічка стилізована під месенджер: фейк має виглядати як реальний пост.
+   Гравець позначає всі ворожі пости (скільки їх, не кажемо) і підтверджує.
+   Пости з'являються послідовно з typing-індикатором, перегляди ростуть
+   у реальному часі (ворожі швидше). На кожному пості кнопка 🔍 OSINT. */
 function phaseFeed(){
   const sc = SCENARIOS[S.i];
   const feed = S.feed;
-  // FIX 4: у боса пара пост↔стемп несе сюжет (Пн вкид → Вт експерт → Ср медіа) — не шафлити,
-  // щоб хронологія лишилась авторською. В операціях 1-3 шафл лишається.
+  // Порядок постів тасується, щоб позиції ворожих не запам'ятовувались, а
+  // таймстемпи лишаються в авторському порядку зверху вниз, тож хронологія
+  // виглядає природно. У боса пара пост↔час несе сюжет, тому не тасуємо.
   S._feedOrder = sc.boss ? [...Array(feed.length).keys()] : shuffled(feed.length);
-  S._feedStamps = feed.map(m=>m.m);       // таймстемпи в авторському (хронологічному) порядку
+  S._feedStamps = feed.map(m=>m.m);
   S._feedReady = false;
-  S._feedGen = (S._feedGen||0) + 1;       // захист від застарілого ланцюжка reveal, якщо екран змінився
+  S._feedGen = (S._feedGen||0) + 1;       // покоління ревілу: застарілий ланцюжок setTimeout сам зупиниться
   const gen = S._feedGen;
   render(`
     <div class="eyebrow phase-title">${t('phase1Title')}</div>
@@ -1229,11 +1396,8 @@ function phaseFeed(){
   if(inFirstOp()) showHint('feed_enter');
   revealFeed(gen, 0);
 }
+/** Розмітка одного поста стрічки. Клас .appear анімує появу; перегляди стартують з 0, revealFeed тікає їх до m.v. */
 function msgHTML(idx, m, stamp){
-  // design/crt-lab.html блок 05: клас .appear одразу в розмітці — елемент новий
-  // при вставці (insertAdjacentHTML у revealFeed), окремий JS-тригер не потрібен.
-  // Задача 4, мікроанімація 5: лічильник переглядів рендериться з "0" —
-  // revealFeed() відразу після вставки тікає його вгору до справжнього m.v.
   return '<div class="msg appear" tabindex="0" role="button" data-i="'+idx+'" data-views="'+parseViews(m.v)+'" data-hostile="'+(m.h?1:0)+'" onclick="pickMsg('+idx+')" onkeydown="if(event.key===\'Enter\')pickMsg('+idx+')">'
     + '<div class="msg-head"><span class="msg-author">'+m.a+'</span><span class="msg-tools"><span class="msg-meta">'+stamp+'</span><button class="osint-btn" data-i="'+idx+'" title="'+t('osintCheckTitle')+'" onclick="event.stopPropagation();osintOpen('+idx+')" onkeydown="event.stopPropagation()">🔍</button></span></div>'
     + (m.flagged ? '<div class="msg-flag">'+t('moderationFlagged')+'</div>' : '')
@@ -1241,7 +1405,7 @@ function msgHTML(idx, m, stamp){
     + '<div class="msg-views">👁 <span class="views-n">0</span></div>'
     + '</div>';
 }
-/* Жива стрічка (задача 8.2): пости зʼявляються послідовно з typing-індикатором. */
+/** Рекурсивний ревіл стрічки: typing-індикатор 260мс, потім пост, пауза 160-300мс, наступний. */
 function revealFeed(gen, i){
   if(gen !== S._feedGen) return;
   const feedEl = document.getElementById('feed');
@@ -1267,6 +1431,7 @@ function revealFeed(gen, i){
     setTimeout(()=>revealFeed(gen, i+1), 160 + Math.random()*140);
   }, 260);
 }
+/** «12.4K» → 12400; просте число → як є. */
 function parseViews(str){
   const m = /^([\d.]+)\s*K$/i.exec(String(str).trim());
   return m ? parseFloat(m[1])*1000 : (parseFloat(str)||0);
@@ -1287,23 +1452,27 @@ function startViewsTicker(){
     });
   }, 1400);
 }
+/** «ПІДТВЕРДИТИ» активна лише коли всі пости з'явились і щось позначено. */
 function updateConfirmBtn(){
   const btn = document.getElementById('confirmBtn');
   if(btn) btn.disabled = !S._feedReady || S.picks.size===0;
 }
+/** Тап по посту: нейтральна позначка SELECTED. Вердикт (червоне/зелене) ставить лише resolveFeed(). */
 function pickMsg(idx){
-  if(document.querySelector('#feed.locked-feed')) return;   // FIX 5: pointer-events:none не блокує keydown
+  if(document.querySelector('#feed.locked-feed')) return;   // після підтвердження; pointer-events:none не блокує keydown
   if(inFirstOp()) showHint('first_pick');
   const el = document.querySelector('.msg[data-i="'+idx+'"]');
-  // Задача 2: тап дає лише нейтральний SELECTED (циан), не вердикт.
-  // Червоне+глітч (is-threat, блок 05) чіпляє тільки resolveFeed() —
-  // після ПІДТВЕРДЖЕННЯ вибору, не на самому тапі.
   if(S.picks.has(idx)){ S.picks.delete(idx); el.classList.remove('sel'); }
   else { S.picks.add(idx); el.classList.add('sel'); }
   updateConfirmBtn();
 }
 
-/* ---------- OSINT: «Перевірити джерело» (задача 4) ---------- */
+/* ---------- OSINT: «Перевірити джерело» ----------
+   Обмежений ресурс (S.osintLeft). Досьє показує лише сирі факти про канал
+   (дата створення, активність, історія назв, старі пости, хто репостить),
+   без готового вердикту «підозріло»: висновок робить сам гравець. Дані в
+   полі osint кожного поста (content.js). */
+/** Клік по 🔍. Повторний перегляд уже перевіреного каналу безкоштовний. */
 function osintOpen(idx){
   const m = S.feed[idx];
   if(!m || !m.osint) return;
@@ -1315,8 +1484,7 @@ function osintOpen(idx){
   }
   showOsint(m);
 }
-/* Задача 12, Д10: профіль показує лише сирі факти, без готового вердикту.
-   Жодного "підозріло" в інтерфейсі — висновок робить сам гравець. */
+/** Модалка-досьє каналу. */
 function showOsint(m){
   const o=m.osint;
   const wrap=document.createElement('div');
@@ -1324,10 +1492,8 @@ function showOsint(m){
   const row=(icon,label,valueHtml)=>
     '<div class="osint-row"><span class="osint-ico">'+icon+'</span>'
     + '<div class="osint-rowbody"><b>'+label+'</b><span>'+valueHtml+'</span></div></div>';
-  // «Вишневе»/дрібніші джерела мають розріджені досьє (частина полів навмисно
-  // порожня, брифінг задачі каже "не рендерити") — тож кожен рядок пропускаємо,
-  // якщо поля нема. Існуючі операції завжди заповнюють усі поля, тому для них
-  // поведінка не змінюється.
+  // Досьє може бути розрідженим (дрібні джерела мають не всі поля), тож
+  // порожній рядок просто не рендериться.
   const rows = [
     o.created    ? row('📅',t('osintCreated'), o.created) : '',
     o.postsMonth ? row('📊',t('osintActivity'), o.postsMonth) : '',
@@ -1347,6 +1513,13 @@ function showOsint(m){
   document.body.appendChild(wrap);
 }
 
+/**
+ * «ПІДТВЕРДИТИ ВИБІР»: підбиває фазу 1.
+ * Економіка: знайдений явний +5, тонкий +8, пропуск -6, хибна тривога -6.
+ * Чиста фаза (усі знайдені, нуль хибних) продовжує серію і дає множник,
+ * будь-яка помилка скидає серію. Довіра: хибна тривога -2, пропущений
+ * явний наратив -1 (тонкий пропуск довіру не чіпає).
+ */
 function resolveFeed(){
   const sc = SCENARIOS[S.i];
   if(S._viewsInt){ clearInterval(S._viewsInt); S._viewsInt=null; }   // заморозити перегляди на моменті підтвердження
@@ -1354,11 +1527,9 @@ function resolveFeed(){
   document.getElementById('feed').classList.add('locked-feed');
   document.getElementById('confirmBtn').style.display='none';
   let gain=0, loss=0, hostileTotal=0, hostileFound=0, falseAlarms=0, missedExplicit=0, missedSubtle=0;
-  const recognized = [];   // пам'ять вибору (задача 9): усі ворожі пости цієї операції, знайдені й пропущені
-  // Задача 2: "підтверджена загроза" (is-threat, червона рамка+глітч блоку 05)
-  // тепер вішається ТУТ, на підтвердженні вибору фази — і лише на "червоних"
-  // вердиктах (пропущено/хибна тривога). На .hit (влучив) навмисно НЕ
-  // вішаємо is-threat, щоб не забити усталений зелений "вірно".
+  const recognized = [];   // пам'ять вибору: усі ворожі пости цієї операції, знайдені й пропущені
+  // Червона рамка + глітч «підтверджена загроза» лише на червоних вердиктах
+  // (пропущено / хибна тривога); влучення лишається звичним зеленим.
   const punchThreat = el => {
     el.classList.add('is-threat');
     el.classList.remove('glitch'); void el.offsetWidth; el.classList.add('glitch');
@@ -1366,7 +1537,7 @@ function resolveFeed(){
   };
   S.feed.forEach((m,idx)=>{
     const el = document.querySelector('.msg[data-i="'+idx+'"]');
-    el.classList.remove('sel');   // прибрати pre-resolve нейтральну позначку (блок 05, задача 2)
+    el.classList.remove('sel');   // прибрати нейтральну позначку вибору
     if(m.h){
       hostileTotal++;
       const subtle = m.tier==='sub';
@@ -1391,12 +1562,12 @@ function resolveFeed(){
       el.classList.add('safe','shake');
       punchThreat(el);
       el.insertAdjacentHTML('afterbegin','<span class="tag n">'+t('tagFalseAlarm')+'</span>');
-      // Флоу-рефакторинг Ф1: у місії лише вердикт + перше речення; повний `w` — в AAR
+      // у місії лише вердикт + перше речення пояснення; повний `w` буде в AAR
       el.insertAdjacentHTML('beforeend', verdictExpl(false, m.w));
     }
   });
-  // Флоу-рефакторинг Ф1: самодостатній лог стрічки для AAR (runtime, не в localStorage).
-  // Знімаємо і текст, щоб звіт не залежав від подальших мутацій S.feed.
+  // Самодостатній лог стрічки для AAR: копіюємо й тексти, щоб звіт не залежав
+  // від подальших змін S.feed.
   S._op.review = S.feed.map((m,idx)=>({
     a:m.a, hostile:!!m.h, tier:m.tier||null, subtype:m.subtype||null, w:m.w||null,
     marker: m.h ? (picked.includes(idx)?'hit':'miss') : (picked.includes(idx)?'false':'clean')
@@ -1408,7 +1579,6 @@ function resolveFeed(){
   S._spotClean = clean;
   S._op.found=hostileFound; S._op.total=hostileTotal; S._op.false=falseAlarms; S._op.miss=hostileTotal-hostileFound;
   if(clean){ S.streak++; } else { S.streak=0; }
-  // жива довіра (задача 10): хибна тривога -2, пропущений явний наратив -1
   const repDelta = falseAlarms*-2 + missedExplicit*-1;
   if(repDelta) setRep(repDelta);
   if(inFirstOp()){
@@ -1417,19 +1587,16 @@ function resolveFeed(){
   }
   const delta = (clean?gainAdj(gain):gain) + pen(loss);
   setTimeout(()=>{ setInfl(delta, delta>0?t('recognition'):t('misses')); },350);
-  // задача «Вишневе»: sc.subQuestion — той самий тип питання, що й techniques
-  // (штатне single-choice), лише додаткове уточнення перед аналізом техніки.
+  // Операція може мати додаткове підпитання перед аналізом техніки (sc.subQuestion).
   const nextAfterFeed = sc.subQuestion ? 'phaseSubQuestion' : 'phaseTech';
   const feedNote = falseAlarms>0 ? '<p class="report-note">'+t('fullReportNote')+'</p>' : '';
   appendActionBtn(feedNote+'<button class="btn" onclick="wildThen(\''+nextAfterFeed+'\')">'+t('nextTechAnalysis')+'</button>');
 }
 
-/* ---------- Підпитання (задача «Вишневе»): уточнення ролі конкретного джерела.
-   Штатне single-choice питання — той самий патерн UI/логіки, що й phaseTech
-   (клік по картці, миттєвий фідбек, підсвітка вірної/хибної), лише параметризовано
-   довільним {q,opts} замість sc.techniques. Вставляється між розпізнаванням
-   у стрічці й аналізом техніки, коли в операції є sc.subQuestion. НЕ новий тип
-   питання — той самий single-choice формат, що й у інших операціях. */
+/* ---------- ФАЗА 1б · Підпитання (необов'язкова) ----------
+   Уточнення про конкретне джерело між стрічкою і аналізом техніки. Той
+   самий single-choice патерн, що й phaseTech, лише з довільним {q, opts}
+   із sc.subQuestion. Економіка та сама: +7 / -8. */
 function phaseSubQuestion(){
   const sc = SCENARIOS[S.i];
   const q = sc.subQuestion;
@@ -1462,7 +1629,11 @@ function pickSubQuestion(idx){
   appendActionBtn('<button class="btn" onclick="wildThen(\'phaseTech\')">'+t('nextTechAnalysis')+'</button>');
 }
 
-/* ---------- Wildcard ---------- */
+/* ---------- Wildcard: несподівана подія між фазами ----------
+   Дані у WILD (content.js). Два типи: 'inst' (миттєвий ефект на шкалу,
+   довіру або таймер) і вибір з двох варіантів на 15 секунд. Кожна подія
+   трапляється не більше одного разу за кампанію; ймовірність задає роль. */
+/** Перехід до наступної фази fnName через можливу wildcard-подію. */
 function wildThen(fnName){
   const pool = WILD.filter(w=>!S.usedWild.includes(w.id));
   if(pool.length && Math.random() < S.role.wild){
@@ -1482,9 +1653,9 @@ function showWild(w, fnName){
         <p>${w.p}</p>
       </div>
       <button class="btn" onclick="window['${fnName}']()">${t('acceptAndContinue')}</button>`);
-    // Ефект застосовуємо синхронно одразу при показі події: шкала в топбарі анімується
-    // своїм CSS-переходом, ефект видимий до «продовжити» й не губиться (rAF/таймер у
-    // прихованій вкладці можуть не спрацювати).
+    // Ефект застосовується синхронно при показі: шкала в топбарі анімується
+    // CSS-переходом і рух видно ще до «продовжити». Відкладений через таймер
+    // ефект міг би загубитись у прихованій вкладці.
     if(w.fx) setInfl(w.fx>0?w.fx:pen(w.fx), t('eventLabel'));
     if(w.rep) setRep(w.rep);
     if(w.timerCut) S.timerCut = w.timerCut;
@@ -1506,7 +1677,7 @@ function showWild(w, fnName){
   }
   if(inFirstOp()) showHint('wildcard_first');   // після render(), інакше підказку одразу змиє очищення екрана
 }
-/* FIX 2а: той самий Date.now()-based патерн, що й у startTimer — стійкий до тротлінгу вкладки. */
+/** 15-секундний таймер wildcard-вибору; той самий Date.now()-патерн, що й startTimer. На нулі вибирається варіант b. */
 function startWildTimer(seconds, total){
   document.body.classList.add('timer-active');   // притлумлює фідбек-кнопку на час активної фази
   total = total || seconds;
@@ -1523,6 +1694,7 @@ function startWildTimer(seconds, total){
     if(left<=0){ clearInterval(wtimerInt); wtimerInt=null; wildPick('b',true); }
   },1000);
 }
+/** Вибір варіанта 'a'/'b' у wildcard. «Добрий» вибір = плюс до шкали без прихованих штрафів (cons, rep<0). */
 function wildPick(key, timedOut){
   S._wildDone = true;
   if(wtimerInt){ clearInterval(wtimerInt); wtimerInt=null; }
@@ -1536,20 +1708,21 @@ function wildPick(key, timedOut){
   if(!goodPick) picked.classList.add('shake');
   notPicked.classList.add('dim');
   picked.insertAdjacentHTML('beforeend','<div class="expl">'+(timedOut?t('timeUpPrefix'):'')+o.e+'</div>');
-  // ФІКС 2: звук — за сенсом (goodPick), не за знаком дельти. Пастки на кшталт
-  // witch.b/botfarm.b мають fx>0, але cons:true+rep<0 — картка вже показує 'bad',
-  // а без цього явного sfx звук зрадницьки грав би 'gain'.
+  // Звук за сенсом вибору, а не за знаком дельти: пастки дають fx>0, але
+  // cons/rep<0, і картка вже показує 'bad', тож і звук має бути 'loss'.
   setInfl(o.fx>0?o.fx:pen(o.fx),t('eventLabel'), goodPick?'gain':'loss');
   if(o.rep) setRep(o.rep);
   if(o.cons) S.cons++;
   appendActionBtn('<button class="btn" onclick="window[\''+S._wildNext+'\']()">'+t('continueBtn')+'</button>');
 }
 
-/* ---------- Пам'ять вибору (задача 9): «РОЗКРИТІ НАРАТИВИ» ---------- */
+/* ---------- Пам'ять вибору: блок «РОЗКРИТІ НАРАТИВИ» ----------
+   Показується у фазах 2-4 під питанням: усі ворожі пости операції, знайдені
+   й пропущені, щоб гравець аналізував техніку з контекстом перед очима. */
 function narrativesBlockHTML(){
   const rec = S._recognized || [];
   if(!rec.length) return '';
-  const showSubtype = !!S._techAnswered;   // задача 12, Б4: ярлик підтипу з'являється лише після фази 2
+  const showSubtype = !!S._techAnswered;   // ярлик підтипу з'являється лише після відповіді у фазі 2
   const cards = rec.map(r=>{
     const m = S.feed[r.idx];
     const subtle = m.tier==='sub';
@@ -1567,16 +1740,12 @@ function narrativesBlockHTML(){
 }
 function toggleNarr(el){ el.classList.toggle('narr-open'); }
 
-/* ---- Згортання довгого тексту (референс: пости ФБ) --------------------
-   Один механізм на два місця: описи опцій (2 рядки, поріг 90) і пости
-   стрічки (4 рядки, поріг 240). toggleClamp — спільний обробник; завжди
-   stopPropagation, бо і .opt, і .msg клікабельні (вибір відповіді /
-   позначення поста). Коротший за поріг текст рендериться без обгортки. */
-const OPT_CLAMP_LEN = 90;
-const MSG_CLAMP_LEN = 240;
-/* Правка плейтесту (п.2): у місії картка опції показує ЛИШЕ заголовок, опис
-   з'являється по кліку «показати більше» (незалежно від довжини). Опис
-   схований (.opt-d.clamped -> display:none), toggleClamp його розкриває. */
+/* ---------- Згортання довгого тексту («показати більше») ----------
+   Один механізм на два місця: описи опцій і пости стрічки. toggleClamp
+   завжди робить stopPropagation, бо і .opt, і .msg самі клікабельні. */
+const OPT_CLAMP_LEN = 90;    // історичний поріг для описів опцій (зараз опис завжди згорнутий)
+const MSG_CLAMP_LEN = 240;   // пости довші за це згортаються до 4 рядків
+/** Картка опції показує лише заголовок; опис розкривається по кліку, незалежно від довжини. */
 function optDesc(d){
   if(!d) return '';
   return `<span class="opt-d clamped">${d}</span><span class="opt-more" onclick="toggleClamp(event,this)">${t('seeMore')}</span>`;
@@ -1593,10 +1762,11 @@ function toggleClamp(ev, el){
   el.textContent = open ? t('seeLess') : t('seeMore');
 }
 
-/* ---------- Флоу-рефакторинг, Фаза 1: короткий фідбек у місії ----------
-   Двигун відокремлює гру від розбору: під час місії показуємо тільки вердикт
-   + перше речення пояснення, повний текст (`e`, `w`) переїжджає в AAR-звіт після
-   операції. firstSentence — runtime-витяг, content.js НЕ редагується. */
+/* ---------- Короткий фідбек у місії ----------
+   Гра і розбір розведені: під час місії показуємо лише вердикт і перше
+   речення пояснення, повний текст (`e`, `w`) гравець читає в AAR після
+   операції. Перше речення витягується на льоту, контент не дублюється. */
+/** Перше речення тексту; якщо воно коротше 15 символів («Так.»), додає ще одне. */
 function firstSentence(s){
   if(!s) return "";
   const m = s.match(/^[^.!?]*[.!?]/);
@@ -1613,7 +1783,10 @@ function verdictExpl(right, e){
   return '<div class="expl">'+(right?t('verdictRight'):t('verdictWrong'))+' '+firstSentence(e)+'</div>';
 }
 
-/* ---------- Фази 2-4 ---------- */
+/* ---------- ФАЗА 2 · ТЕХНІКА ----------
+   Яку техніку маніпуляції використано. 4 варіанти: правильна і три сусідні
+   техніки, частково присутні в постах (дистрактори). Економіка +7 / -8;
+   правильна відповідь відкриває бейдж техніки. */
 function phaseTech(){
   const sc = SCENARIOS[S.i];
   const okIdx = sc.techniques.opts.findIndex(o=>o.ok);
@@ -1638,11 +1811,17 @@ function phaseTech(){
 function pickTech(idx){
   const sc = SCENARIOS[S.i]; S.total++;
   const ok = sc.techniques.opts[idx].ok;
-  S._techOK = ok; S._op.techOK = ok; S._op.techPick = idx;   // Ф1: pick → AAR
-  S._techAnswered = true;   // задача 12, Б4: підтипи наративів з'являються тільки після відповіді у фазі 2
-  if(ok){ S.correct++; S.streak++; if(!S.badges.includes(sc.badge)){S.badges.push(sc.badge); setTimeout(()=>{ toast(t('badgeToast',sc.badge),'plus'); SFX.play('badge'); },1800);} }
+  S._techOK = ok; S._op.techOK = ok; S._op.techPick = idx;   // вибір запам'ятовуємо для AAR
+  S._techAnswered = true;   // з цього моменту блок наративів показує підтипи
+  if(ok){
+    S.correct++; S.streak++;
+    if(!S.badges.includes(sc.badge)){
+      S.badges.push(sc.badge);
+      setTimeout(()=>{ toast(t('badgeToast',sc.badge),'plus'); SFX.play('badge'); },1800);
+    }
+  }
   else S.streak=0;
-  // Флоу-рефакторинг Ф1: у місії лише вердикт + перше речення; повне `e` — в AAR
+  // підсвітка: правильна зелена, обрана хибна червона з тряскою, решта пригашена
   sc.techniques.opts.forEach((o,j)=>{
     const el = document.querySelector('.opt[data-i="'+j+'"]');
     el.disabled = true;
@@ -1655,6 +1834,9 @@ function pickTech(idx){
   appendActionBtn('<p class="report-note">'+t('fullReportNote')+'</p><button class="btn" onclick="wildThen(\''+next+'\')">'+t('nextCounter')+'</button>');
 }
 
+/* ---------- ФАЗА 3 · АУДИТОРІЯ (лише в операціях із sc.audiences) ----------
+   Кому адресувати контрхід. Вибір без оцінки, але він визначає набір
+   контрходів у наступній фазі (кожна аудиторія має свої counters). */
 function phaseAudience(){
   const sc = SCENARIOS[S.i];
   render(`
@@ -1672,13 +1854,17 @@ function phaseAudience(){
 }
 function pickAudience(idx){ S.audience = idx; phaseCounter(); }
 
+/* ---------- ФАЗА 4 · КОНТРХІД (на таймері) ----------
+   Таймер інфовакууму: час задає роль, мінус те, що відрізали wildcard і
+   сюжет боса, але не менше 12с. Поки гравець думає, ворог заповнює тишу
+   (-2 кожні 9с). Опції: best (+12, довіра +3), середні (+2..5),
+   шкідливі (-12). Поле cons позначає «гучне мовчання». */
 function phaseCounter(){
   const sc = SCENARIOS[S.i];
   const c = sc.audiences ? sc.audiences[S.audience].counters : sc.counters;
-  // задача 12, В8: бос забирає з таймера контрходу ще й додаткові секунди від сюжету
   const tSec = Math.max(12, S.role.time - S.timerCut - (sc.bossTimerCut||0));
   S._op.timeTotal = tSec;
-  S._counterDone = false;   // задача 11: чи гравець уже відповів (щоб не відновлювати таймер даремно)
+  S._counterDone = false;   // чи гравець уже відповів (щоб підказка не відновлювала таймер даремно)
   const order = shuffled(c.opts.length);
   render(`
     <div class="ph-counter">
@@ -1707,15 +1893,14 @@ function pickCounter(idx){
   const o = c.opts[idx];
   if(o.best){ S.correct++; S.streak++; } else S.streak=0;
   if(o.cons) S.cons++;
-  // жива довіра (задача 10): оптимальний контрхід +3, середній без змін, наявні штрафи з полів rep лишаються
+  // довіра: оптимальний контрхід +3, плюс власне поле rep опції (зазвичай штраф)
   const repDelta = (o.rep||0) + (o.best?3:0);
   if(repDelta) setTimeout(()=>setRep(repDelta), 900);   // затримка, щоб не забити тост впливу нижче
   S._op.counter = o.best ? 'best' : (o.fx<0 ? 'bad' : 'mid');
-  S._op.counterPick = idx;   // Ф1: pick → AAR
+  S._op.counterPick = idx;   // для AAR
   S._op.timeLeft = S._timeLeft||0;
-  S.results.push({tech: sc.tech, techOK: S._techOK, counterGood: !!o.best});
-  // Флоу-рефакторинг Ф1: у місії лише вердикт + перше речення; повне `e` — в AAR.
-  // Вердикт бінарний проти best — так само, як гра рахує помилку (counter!=='best').
+  S.results.push({tech: sc.tech, techOK: S._techOK, counterGood: !!o.best});   // для профілю вразливості на фіналі
+  // Вердикт бінарний проти best, так само як ранг рахує помилку.
   c.opts.forEach((op,j)=>{
     const el = document.querySelector('.opt[data-i="'+j+'"]');
     el.disabled = true;
@@ -1728,22 +1913,22 @@ function pickCounter(idx){
     else if(op.best){ el.classList.add('good'); el.insertAdjacentHTML('beforeend', verdictExpl(true, op.e)); }
     else el.classList.add('dim');
   });
-  // PATCH B5: чесний фідбек середньої опції — не видавати частковий ефект за перемогу
+  // Чесний фідбек: середня опція підписана як «частковий ефект», без звуку перемоги.
   const label = o.best ? t('counterWorks') : (o.fx>0 ? t('partialEffect') : t('ipsoFavorMove'));
   setInfl(o.fx>0?gainAdj(o.fx,true):pen(o.fx), label, (!o.best && o.fx>0) ? false : undefined);
   appendActionBtn('<p class="report-note">'+t('fullReportNote')+'</p><button class="btn" onclick="phaseAAR()">'+t('nextDebrief')+'</button>');
 }
 
-/* ---------- Ранг за операцію (A/B/C) ---------- */
-/* Задача 12, В7: шкала A/B/C без S. Помилка рахується за кожен пропуск, кожну
-   хибну тривогу, хибну техніку та неоптимальний контрхід. 0 помилок = A,
-   рівно 1 = B, дві й більше = C. */
+/* ---------- Ранг за операцію (A/B/C) ----------
+   Помилка = кожен пропуск, кожна хибна тривога, хибна техніка, хибне
+   підпитання, неоптимальний контрхід, таймаут. 0 помилок A, рівно 1 B,
+   дві й більше C. Швидкість у ранг не входить, лише показується. */
 function countMistakes(d){
   let m = (d.miss||0) + (d.false||0);
   if(!d.techOK) m++;
-  if(d.subOK===false) m++;   // задача «Вишневе»: підпитання рахується лише коли операція його ставить
+  if(d.subOK===false) m++;   // підпитання рахується лише коли операція його ставить
   if(d.counter!=='best') m++;
-  if(d.timedOut) m++;   // PATCH B1: таймаут = помилка
+  if(d.timedOut) m++;
   return m;
 }
 function gradeOp(){
@@ -1753,17 +1938,17 @@ function gradeOp(){
   return 'C';
 }
 
-/* ---------- Флоу-рефакторинг, Фаза 1: AAR (звіт після операції) ----------
-   Гру і розбір розведено: у місії — короткий вердикт, тут — повний розбір.
-   Один екран замість дебрифу+рангу: результат і дельти за операцію, розбір
-   стрічки (повні `w` чесних постів + підтипи ворожих), техніка й контрхід із
-   повними `e`, дебриф, кліфхенгер. Показується і на перемозі, і на поразці
-   (infl<=8). AAR лише ЧИТАЄ підсумки — логіка впливу/довіри/рангу не змінена. */
+/* ---------- AFTER ACTION REPORT (розбір після операції) ----------
+   Навчальне ядро гри. Один екран: ранг і дельти за операцію, а під кнопкою
+   «ДЕТАЛЬНИЙ РОЗБІР» повні пояснення: кожен пост стрічки (повний `w` чесних
+   постів, підтипи ворожих), техніка і контрхід з повними `e`, дебриф,
+   кліфхенгер. Показується і на перемозі, і на поразці (infl<=8).
+   AAR лише читає підсумки S._op, нічого не рахує заново. */
 function phaseAAR(){
   const sc = SCENARIOS[S.i], d = S._op || {};
   const defeated = S.infl <= 8;
   const g = gradeOp();
-  // задача 6: якщо БЛЕКАУТ закрито погано — вмикаємо мутацію у фіналі (хук лишається де й був, у рангу)
+  // Якщо «Блекаут» закрито погано, у фінальній операції з'явиться наратив-мутація.
   if(sc.id==='blackout') S.op1Bad = (g==='C') || !S._spotClean;
   SFX.play(defeated ? 'loss' : 'result');
 
@@ -1824,9 +2009,7 @@ function phaseAAR(){
   const cPick = cOpts[d.counterPick], cRight = cOpts.find(o=>o.best);
   const counterSection = cPick ? '<div class="aar-section-h">'+t('aarCounterSection')+'</div>'+aarReviewCard(!!cPick.best, cPick, cRight) : '';
 
-  /* --- Фаза 3 (майбутнє): тут вставляється картка «ТЕХНІКУ РОЗКРИТО» --- */
-
-  // поразка зберігає стару семантику: операція не зараховується, лише перепройти/спочатку
+  // Поразка: операція не зараховується, лише «перепройти» або «спочатку».
   const btns = defeated
     ? '<button class="btn" onclick="replayOp()">'+t('replayOp')+'</button>'
       + '<button class="btn ghost" onclick="restart()">'+t('restartCampaign')+'</button>'
@@ -1834,7 +2017,7 @@ function phaseAAR(){
       + '<button class="btn ghost" onclick="replayOp()">'+t('replayOp')+'</button>';
   const cliffHTML = (sc.cliff && !defeated) ? '<div class="cliff aar-cliff"><b>'+t('meanwhile')+'</b>'+sc.cliff+'</div>' : '';
 
-  // п.7: за замовчуванням видно тільки таблицю результату; решта — під кнопкою
+  // За замовчуванням видно лише таблицю результату; розбір розкривається кнопкою.
   const detailHTML = `
       ${feedSection}
       ${techSection}
@@ -1871,7 +2054,7 @@ function aarReviewCard(right, pick, correct){
     : '';
   return yours + rightCard;
 }
-/* Рестарт поточної операції без скидання кампанії: відкат до знімка старту. */
+/** «ПЕРЕПРОЙТИ»: відкат стану до знімка S._snap, зробленого на старті операції; кампанія не скидається. */
 function replayOp(){
   const s = S._snap; if(!s) return;
   S.infl=s.infl; S.rep=s.rep; S.repMin=s.repMin; S.streak=s.streak; S.correct=s.correct; S.total=s.total;
@@ -1880,24 +2063,27 @@ function replayOp(){
   setInfl(0);   // перемалювати шкалу й HUD під відновлені значення
   startScenario();
 }
-/* Мапа-хаб (скасовує лінійну послідовність 3+3): після дебрифу гравець завжди
-   повертається на мапу, а не автоматично «йде далі» по масиву. Завершення
-   боса — єдиний вихід у фінал кампанії. */
+/** Після розбору гравець завжди повертається на мапу; завершення боса — єдиний вихід у фінал. */
 function nextScenario(){
   const sc = SCENARIOS[S.i];
   const wasFirstOp = (sc.id === firstOpId);
   markCompleted(sc.id);
   if(sc.boss){ finale(); return; }
-  campaignMap();   // Ф1: кліфхенгер переїхав у AAR (тизер останнім у звіті), на мапі більше не дублюється
-  // задача 11: прощальна підказка й вимкнення туторіалу лишень після неї,
-  // щоб сама підказка встигла спрацювати, поки tutorialDone ще false
+  campaignMap();
+  // Прощальна підказка туторіалу, і лише після неї tutorialDone=true,
+  // інакше showHint відкинув би її.
   if(wasFirstOp){ showHint('map_after_op1'); tutorialDone = true; }
 }
 
+/* ---------- ФІНАЛ КАМПАНІЇ ----------
+   Ранг за стійкістю: ≥78 Інфостійкий, ≥52 Медіаграмотний, інакше Жертва
+   методички. Профіль вразливості: техніки, де і аналіз, і контрхід були
+   правильні, проти тих, де хоч щось не так. Якщо гравець двічі і більше
+   обирав «гучне мовчання» (S.cons>=2), спочатку грає кризова подія -10. */
 function finale(){
   if(packMode){ packFinale(); return; }   // pack-режим: своя звірка замість кампанійного підсумку
   document.body.classList.remove('boss-mode');
-  SFX.crossfadeToAmbient();   // M4: бос-музика кросфейдиться назад в амбієнт
+  SFX.crossfadeToAmbient();
   let crisisHtml = '';
   const doCrisis = S.cons >= 2;
   if(doCrisis){
@@ -1906,8 +2092,8 @@ function finale(){
       <p>${t('silenceEventText')}</p>
     </div>`;
   }
-  // FIX 3: одразу рендеримо проміжний екран без кнопок — убиває і дабл-клік "ПІДСУМОК",
-  // і клік "ПЕРЕПРОЙТИ", що рендерився б поверх цієї ж затримки
+  // Проміжний екран без кнопок одразу: інакше за 1.5с затримки гравець міг би
+  // ще раз клікнути «ПІДСУМОК» чи «ПЕРЕПРОЙТИ».
   if(doCrisis){
     render(`
       <div style="padding-top:3vh;text-align:center">
@@ -1969,20 +2155,33 @@ function finale(){
   } else doRender();
 }
 
-function resetState(){ S.role=null; S.i=0; S.infl=50; S.rep=100; S.repMin=100; S.streak=0; S.correct=0; S.total=0; S.cons=0; S.results=[]; S.badges=[]; S.usedWild=[]; S.timerCut=0; S.lastTechPos=-1; S._op=null; S._snap=null; S.feed=[]; S.osintLeft=2; S.osintTotal=2; S.osintDone=new Set(); S.op1Bad=false; S._recognized=[]; S._techAnswered=false; document.body.classList.remove('boss-mode'); SFX.stopAmbient(); }
-function restart(){ resetState(); setInfl(0); roleSelect(); }
-function restartToModes(){ resetState(); setInfl(0); modeSelect(); }
+/** Скидання кампанії до стартових значень. Прогрес на мапі (localStorage) і прапорці сесії не чіпає. */
+function resetState(){
+  S.role=null; S.i=0;
+  S.infl=50; S.rep=100; S.repMin=100;
+  S.streak=0; S.correct=0; S.total=0; S.cons=0;
+  S.results=[]; S.badges=[]; S.usedWild=[];
+  S.timerCut=0; S.lastTechPos=-1;
+  S._op=null; S._snap=null; S.feed=[];
+  S.osintLeft=2; S.osintTotal=2; S.osintDone=new Set();
+  S.op1Bad=false; S._recognized=[]; S._techAnswered=false;
+  document.body.classList.remove('boss-mode');
+  SFX.stopAmbient();
+}
+function restart(){ resetState(); setInfl(0); roleSelect(); }        // «ЩЕ РАЗ, ІНША РОЛЬ»
+function restartToModes(){ resetState(); setInfl(0); modeSelect(); }  // «ДО РЕЖИМІВ»
 
 /* =====================================================================
-   PACK-РЕЖИМ (Червона команда / Кріейтор): операцію зібрав інший гравець
-   і передав через ?pack=<base64>. Без сервера. Валідний pack = кампанія
-   з однієї операції: скіп інтро й мапи, одразу бріфінг → операція → фінал.
-   Декод строго за схемою: JSON.parse(decodeURIComponent(atob(...))).
+   11. PACK-РЕЖИМ (Червона команда)
+   Операцію зібрав інший гравець у creator.html і передав посиланням
+   ?pack=<base64>. Без сервера. Валідний pack = кампанія з однієї операції:
+   без інтро й мапи, одразу бріфінг → операція → PvP-звіт.
    ===================================================================== */
 let packMode = false;
+/** Декодує і валідує pack за схемою операції. Кидає помилку на невалідних даних. */
 function decodePack(raw){
-  // UTF-8-safe base64: escape() тримає кирилицю компактною (byte-per-byte),
-  // без 6-кратного роздування, яке дало б голий decodeURIComponent(atob()).
+  // UTF-8-safe base64: escape() тримає кирилицю байт-у-байт, без роздування,
+  // яке дав би голий decodeURIComponent(atob()).
   const sc = JSON.parse(decodeURIComponent(escape(atob(raw))));
   const str = v => typeof v==='string' && v.length>0;
   const okMsg = m => m && str(m.a) && str(m.t) && str(m.m) && str(m.v)
@@ -1999,15 +2198,17 @@ function decodePack(raw){
     throw new Error('bad pack schema');
   return sc;
 }
+/** Вхід у pack-режим: підміняє SCENARIOS однією операцією і одразу відкриває бріфінг. */
 function bootPack(raw){
   let sc; try{ sc = decodePack(raw); }catch(e){ brokenPack(); return; }
-  packMode = true; introSeen = true; tutorialDone = true;   // без інтро й туторіалу в pack-режимі
+  packMode = true; introSeen = true; tutorialDone = true;   // без інтро й туторіалу
   SCENARIOS.length = 0; SCENARIOS.push(sc);                 // кампанія з однієї операції
-  S.role = ROLES[1];                                        // стандартний темп для чесного порівняння
+  S.role = ROLES[1];                                        // стандартний темп для чесного порівняння гравців
   document.getElementById('topbar').style.display = 'block';
   hud(); SFX.startAmbient();
-  startScenario(true);   // pack-режим: свій "вхід у гру" без тайтла/катсцени — вузлова точка
+  startScenario(true);   // вузловий перехід «вхід у гру» без тайтла і катсцени
 }
+/** Екран помилки, якщо pack не пройшов схему. */
 function brokenPack(){
   packMode = false;
   document.getElementById('topbar').style.display = 'none';
@@ -2019,11 +2220,9 @@ function brokenPack(){
       <button class="btn" onclick="goStandard()">${t('toStandardGame')}</button>
     </div>`);
 }
+/** Вихід із pack-режиму у звичайну гру: прибрати ?pack= з URL і перезавантажити. */
 function goStandard(){ history.replaceState(null,'',location.pathname); location.reload(); }
-/* design/crt-lab.html блок 07: PvP-звіт — рядки послідовно, потім удар
-   печаткою. .pvp-row→.stat, .stamp→.rank (портовано, лише селектори
-   адаптовано; клас/текст вердикту сам .rank уже отримує з шаблону нижче,
-   тому на відміну від сніпета це тут не дублюється). */
+/** Анімація PvP-звіту: рядки виринають по черзі, потім «удар печаткою» на вердикті. */
 function playPvpReport(root){
   const rows = root.querySelectorAll('.stat');
   const stamp = root.querySelector('.rank');
@@ -2039,6 +2238,7 @@ function playPvpReport(root){
     stamp.classList.add('hit');
   }, reduced?0:120+rows.length*180+120);
 }
+/** PvP-звіт замість фіналу кампанії: чи «пробив» захист автор операції. */
 function packFinale(){
   document.body.classList.remove('boss-mode');
   const sc = SCENARIOS[0], rec = S._recognized || [];
@@ -2063,17 +2263,14 @@ function packFinale(){
   playPvpReport(document.querySelector('.pvp-report'));
 }
 
-/* ===== блок 09: інтро "ІПСОМНІЯ" =====
-   Сама заставка (#ipso-boot) — готовий самодостатній HTML+CSS+JS-блок одразу
-   після <body> в index.html, з власним таймингом і скіпом. Його inline-скрипт
-   виконується одразу при парсингу — тобто РАНІШЕ, ніж завантажиться цей файл
-   (content.js/engine.js підключені в кінці body). Тому window.ipsoIntroStart
-   не чіпляємо: у момент, коли заставка перевіряє його наявність, ця функція
-   ще не існує, виклик мовчки пропускається. Музика вступу й далі queue-иться
-   штатно всередині startIntro() після вибору "ГРАТИ", як і раніше.
-   ipsoIntroDone спрацьовує пізніше (заставка триває 1.4-3с, встигаємо
-   зареєструвати листенер задовго до події) — тому саме тут безпечно
-   запускати звичайний бут гри. */
+/* =====================================================================
+   12. БУТ
+   Заставка «ІПСОМНІЯ» (#ipso-boot) є самодостатнім HTML+CSS+JS-блоком на
+   початку index.html з власним таймінгом і скіпом; її inline-скрипт
+   виконується ще до завантаження цього файлу. Коли заставка закінчується,
+   вона кидає подію 'ipso:intro-done', і лише тоді стартує сама гра.
+   ===================================================================== */
+/** Перший екран гри: pack-режим, якщо в URL є ?pack=, інакше екран режимів. */
 window.ipsoIntroDone = function(){
   const packRaw = new URLSearchParams(location.search).get('pack');
   if(packRaw){ bootPack(packRaw); } else { modeSelect(); }
@@ -2082,15 +2279,13 @@ window.ipsoIntroDone = function(){
 hud();
 setInfl(0);
 document.documentElement.lang = LANG;
-// Глобальна плаваюча кнопка фідбеку: створюється раз, живе поза #app, переживає всі render().
+// Плаваючі кнопки фідбеку і мови створюються раз, живуть поза #app і переживають усі render().
 if(SHOW_FEEDBACK_BTN) document.body.insertAdjacentHTML('beforeend', '<a id="feedbackFab" class="feedback-fab btn--feedback" href="'+FEEDBACK_URL+'" target="_blank" rel="noopener" title="'+t('leaveFeedback')+'">'+t('feedbackFabLabel')+'</a>');
-// Перемикач мови (задача «переклад на англійську»): плаваюча кнопка поза #app,
-// видима одразу з першого екрана (не чекає topbar/вибору ролі), переживає всі render().
 document.body.insertAdjacentHTML('beforeend', '<button id="langFab" class="lang-fab" onclick="toggleLang()"></button>');
 syncStaticLangUI();
 updateLangFab();
-// Захист: якщо #ipso-boot з якоїсь причини не встав у розмітку, подія
-// 'ipso:intro-done' ніколи не прийде — не лишати гру видимо застряглою.
+// Якщо #ipso-boot з якоїсь причини нема в розмітці, подія ніколи не прийде:
+// стартуємо одразу, щоб гра не висіла.
 if(document.getElementById('ipso-boot')){
   document.addEventListener('ipso:intro-done', window.ipsoIntroDone, { once:true });
 } else {

@@ -1,4 +1,16 @@
 <!DOCTYPE html>
+<!--
+  IPSOMNIA · RED TEAM CREATOR  (creator.html)
+  EN · Reverse mode: the player BUILDS an information operation instead of
+  defending against one. A three-step wizard assembles an operation from a
+  fictional library (no free text), previews the feed and exports it as a
+  link index.html?pack=<base64> plus a QR code. The pack has the same
+  schema as a SCENARIOS object in content.js, so the engine plays it
+  unchanged. Entry from the mode screen is behind ENABLE_CREATOR in
+  engine.js; the ?pack= loader itself always works.
+  UA · Зворотний режим: збери ІПСО сам. Майстер із трьох кроків, експорт як
+  посилання з ?pack= і QR-код. Схема пакета = об'єкт SCENARIOS.
+-->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -117,8 +129,12 @@ textarea.link{width:100%;font-family:'JetBrains Mono';font-size:11px;color:var(-
    КРІЕЙТОР ЧЕРВОНОЇ КОМАНДИ
    Гравець збирає ІПСО-операцію з фіктивної бібліотеки (нуль вільного
    тексту) і експортує її як index.html?pack=<base64>. Схема пакета
-   збігається 1:1 зі SCENARIOS у content.js — двигун грає її без правок.
-   Кодування дзеркалить loader: btoa(encodeURIComponent(JSON)).
+   збігається 1:1 зі SCENARIOS у content.js, двигун грає її без правок.
+   Кодування дзеркалить decodePack() у engine.js.
+   Структура скрипта: бібліотека (аудиторії, ефекти, теми, техніки з
+   шаблонами постів, OSINT-досьє, чесні пости-наповнювачі) → стан майстра W
+   → три кроки (ціль / три фази / прев'ю й експорт) → buildOperation,
+   encodePack, packLink.
    ===================================================================== */
 
 /* ---- Фіктивна бібліотека (усі сутності вигадані, generic) ---- */
@@ -217,7 +233,7 @@ const CLEAN_FEED = [
 const HOST_STAMPS = ["09:40","10:55","12:30"];
 const HOST_VIEWS  = ["88K","120K","64K"];
 
-/* ---- Стан майстра ---- */
+/* ---- Стан майстра: усі вибори гравця; кожен крок перемальовується з нього ---- */
 const W = {
   step: 1,
   audience: 0,
@@ -234,6 +250,7 @@ function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;'
 function fill(tpl, topic, detail){ return tpl.replace('{тема}', TOPICS[topic]).replace('{деталь}', DETAILS[detail]); }
 function opt(list, sel, map){ return list.map((v,i)=>`<option value="${i}"${i===sel?' selected':''}>${esc(map?map(v):v)}</option>`).join(''); }
 
+/** Індикатор кроків 1-2-3 угорі. */
 function stepper(){
   const names=['1 · ЦІЛЬ','2 · ФАЗИ','3 · ЕКСПОРТ'];
   return '<div class="stepper">'+names.map((n,i)=>{
@@ -302,7 +319,9 @@ function step2(){
 }
 function setF(i, field, val){ W.phases[i][field]=val; step2(); }
 
-/* ---- Збірка операції (схема = SCENARIOS[i] у content.js) ---- */
+/* ---- Збірка операції (схема = SCENARIOS[i] у content.js) ----
+   Три ворожі пости з шаблонів техніки перемішуються з чесними наповнювачами;
+   techniques і counters формуються з таксономії TECHS. */
 function buildOperation(){
   const primary = TECHS[W.phases[0].tech];
   const hostFeed = W.phases.map((p,i)=>{
@@ -334,6 +353,7 @@ function buildOperation(){
     cliff:""
   };
 }
+/** UTF-8-safe base64, дзеркало decodePack() у engine.js. */
 function encodePack(op){ return btoa(unescape(encodeURIComponent(JSON.stringify(op)))); }
 // encodeURIComponent на base64: інакше '+' у URL читається як пробіл і ламає atob.
 // Loader через URLSearchParams.get() відновлює його автоматично, тому в двигуні правок не треба.
