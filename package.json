@@ -1,0 +1,25 @@
+{
+  "name": "ipsomnia",
+  "version": "0.3.0",
+  "description": "Browser game that trains people to recognise and counter hostile information operations (IPSO). Vanilla JS, no build step.",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "homepage": "https://ipsomnia.com/",
+  "author": "Cultural Forces",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "serve": "python3 -m http.server 8000",
+    "lint:syntax": "node --check engine.js && node --check content.js && node --check validate.js && node --check qrcode.js",
+    "lint:content": "node validate.js",
+    "lint:eslint": "eslint .",
+    "lint": "npm run lint:syntax && npm run lint:content && npm run lint:eslint",
+    "test": "node test/smoke.js"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0",
+    "playwright": "^1.48.0"
+  }
+}

@@ -1,15 +1,17 @@
-# Системне сміття
+# System junk
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Редактори
+# Editor settings
 .vscode/
 .idea/
 *.swp
 
-# Node (на випадок локальних утиліт)
+# Node (dev tooling only; the game itself has no dependencies)
 node_modules/
+package-lock.json
+test-results/
 
-# Сирі файли проєкту звуку (FL Studio) — не потрібні грі, лишаються на диску
+# Raw sound project files (FL Studio), not needed by the game
 assets/sfx/ambientogg/
