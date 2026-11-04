@@ -91,6 +91,8 @@ body.boss-mode{
 .sfx-btn{background:var(--panel2);border:1px solid var(--line);color:var(--muted);font-size:var(--fs-opt);line-height:1;
   padding:4px 6px;cursor:pointer;transition:border-color .15s,color .15s}
 @media (hover:hover){.sfx-btn:hover{border-color:var(--gold);color:var(--gold)}}
+/* Музику вимкнено: приглушений вигляд кнопки 🎵, sfx лишається активним */
+.sfx-btn.off{opacity:.38}
 .tb-prog{font-family:'Press Start 2P';font-size:var(--fs-px-micro);color:var(--muted)}
 /* Задача 3: шкала впливу перероблена на дві чіткі суцільні зони замість
    градієнта+штрихування, які зливались в кашу. База (.infl) — суцільна
@@ -967,7 +969,7 @@ body.timer-active .lang-fab{opacity:.55}
 <div class="topbar" id="topbar" style="display:none">
   <div class="topbar-inner">
     <div class="tb-row">
-      <span class="tb-left"><span class="tb-title px" id="tbTitle">ІПСО<span class="x">·</span>МНІЯ</span><button class="sfx-btn" id="sfxBtn" onclick="toggleSfx()" title="Звук" aria-label="Звук">🔊</button></span>
+      <span class="tb-left"><span class="tb-title px" id="tbTitle">ІПСО<span class="x">·</span>МНІЯ</span><button class="sfx-btn" id="sfxBtn" onclick="toggleSfx()" title="Звук" aria-label="Звук">🔊</button><button class="sfx-btn" id="musicBtn" onclick="toggleMusic()" title="Музика" aria-label="Музика">🎵</button></span>
       <div class="tb-prog px" id="prog"></div>
     </div>
     <div class="infl">

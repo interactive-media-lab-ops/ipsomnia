@@ -140,6 +140,7 @@ const UI = {
     ok:"OK",
     skip:"SKIP ▸",
     soundTitle:"Звук",
+    musicTitle:"Музика",
     leaveFeedback:"Залишити фідбек",
     feedbackFabLabel:"ФІДБЕК",
     seeMore:"Показати більше", seeLess:"Згорнути",
@@ -282,6 +283,7 @@ const UI = {
     ok:"OK",
     skip:"SKIP ▸",
     soundTitle:"Sound",
+    musicTitle:"Music",
     leaveFeedback:"Leave feedback",
     feedbackFabLabel:"FEEDBACK",
     seeMore:"See more", seeLess:"See less",
@@ -331,6 +333,8 @@ function syncStaticLangUI(){
   if(tbTitle) tbTitle.innerHTML = (LANG==='en'?'IPSO':'ІПСО')+'<span class="x">·</span>'+(LANG==='en'?'MNIA':'МНІЯ');
   const sfxBtn = document.getElementById('sfxBtn');
   if(sfxBtn){ sfxBtn.title = t('soundTitle'); sfxBtn.setAttribute('aria-label', t('soundTitle')); }
+  const musicBtn = document.getElementById('musicBtn');
+  if(musicBtn){ musicBtn.title = t('musicTitle'); musicBtn.setAttribute('aria-label', t('musicTitle')); }
   const inflL = document.getElementById('inflLabelL'), inflR = document.getElementById('inflLabelR');
   if(inflL) inflL.textContent = '◂ '+(LANG==='en'?'ENEMY INFLUENCE':'ВПЛИВ ІПСО');
   if(inflR) inflR.textContent = (LANG==='en'?'RESILIENCE':'СТІЙКІСТЬ')+' ▸';
@@ -370,7 +374,11 @@ const SFX_FILES = {
   result:"assets/sfx/result.ogg"
 };
 const SFX = (function(){
-  let muted = false, unlocked = false, ambientWanted = false, introWanted = false;
+  let muted = false, musicMuted = false, unlocked = false, ambientWanted = false, introWanted = false;
+  // Робочий рівень музики і ціль фейду. musicMuted глушить лише музику (ambient/boss/intro),
+  // короткі sfx у play() лишаються — це і є «виключити музику, саунд-дизайн лишити».
+  // muted (майстер-🔊) глушить усе: і музику, і sfx.
+  function musicVol(){ return (muted || musicMuted) ? 0 : 0.34; }
   const ambient = new Audio('assets/sfx/ambient.ogg');
   const bossAmbient = new Audio('assets/sfx/boss_ambient.ogg');
   const introMusic = new Audio('assets/sfx/intro.ogg');
@@ -436,23 +444,23 @@ const SFX = (function(){
   function startAmbient(){
     ambientWanted = true;
     if(unlocked && ambient.paused) ambient.play().catch(()=>{});
-    fadeTo(ambient, muted?0:0.34, 900);
+    fadeTo(ambient, musicVol(), 900);
   }
   // Вступна катсцена (задача 7): свій трек, окремий від геймплейного амбієнту.
   function startIntroMusic(){
     introWanted = true;
     if(unlocked && introMusic.paused) introMusic.play().catch(()=>{});
-    fadeTo(introMusic, muted?0:0.34, 900);
+    fadeTo(introMusic, musicVol(), 900);
   }
   function crossfadeToBoss(){
     fadeTo(ambient, 0, 1500);
     if(unlocked && bossAmbient.paused) bossAmbient.play().catch(()=>{});
-    fadeTo(bossAmbient, muted?0:0.34, 1500);
+    fadeTo(bossAmbient, musicVol(), 1500);
   }
   function crossfadeToAmbient(){
     fadeTo(bossAmbient, 0, 1500);
     if(unlocked && ambient.paused) ambient.play().catch(()=>{});
-    fadeTo(ambient, muted?0:0.34, 1500);
+    fadeTo(ambient, musicVol(), 1500);
   }
   // Перехід катсцена → мапа кампанії: кросфейд intro.ogg у геймплейний ambient.
   function crossfadeIntroToAmbient(){
@@ -460,7 +468,7 @@ const SFX = (function(){
     fadeTo(introMusic, 0, 1500);
     if(unlocked && ambient.paused) ambient.play().catch(()=>{});
     ambientWanted = true;
-    fadeTo(ambient, muted?0:0.34, 1500);
+    fadeTo(ambient, musicVol(), 1500);
     setTimeout(()=>{ if(introWanted) return; try{ introMusic.pause(); introMusic.currentTime=0; }catch(e){} }, 1550);
   }
   function stopAmbient(){
@@ -468,26 +476,38 @@ const SFX = (function(){
     fadeTo(ambient, 0, 400); fadeTo(bossAmbient, 0, 400); fadeTo(introMusic, 0, 400);
     setTimeout(()=>{ if(ambientWanted || introWanted) return; try{ ambient.pause(); bossAmbient.pause(); introMusic.pause(); ambient.currentTime=0; bossAmbient.currentTime=0; introMusic.currentTime=0; }catch(e){} }, 450);
   }
-  function setMuted(v){
-    muted = v; ambient.muted = v; bossAmbient.muted = v; introMusic.muted = v;
-    // M2: unmute мав лишати трек на гучності 0 — дофейдити активний трек назад до робочого рівня
-    if(!v && ambientWanted){
+  // Спільний рефреш музики для обох перемикачів (майстер muted і окремий musicMuted).
+  // Глушіння — миттєве через .muted; повернення звуку — дофейдити активний трек назад до 0.34.
+  function refreshMusic(){
+    const off = muted || musicMuted;
+    ambient.muted = off; bossAmbient.muted = off; introMusic.muted = off;
+    if(off) return;
+    if(ambientWanted){
       const active = document.body.classList.contains('boss-mode') ? bossAmbient : ambient;
       if(unlocked && active.paused) active.play().catch(()=>{});
       fadeTo(active, 0.34, 900);
     }
-    if(!v && introWanted){
+    if(introWanted){
       if(unlocked && introMusic.paused) introMusic.play().catch(()=>{});
       fadeTo(introMusic, 0.34, 900);
     }
   }
+  function setMuted(v){ muted = v; refreshMusic(); }
+  function setMusicMuted(v){ musicMuted = v; refreshMusic(); }
   function toggle(){ setMuted(!muted); return muted; }
-  return { play, startAmbient, startIntroMusic, crossfadeToBoss, crossfadeToAmbient, crossfadeIntroToAmbient, stopAmbient, toggle, unlock, isMuted:()=>muted };
+  function toggleMusic(){ setMusicMuted(!musicMuted); return musicMuted; }
+  return { play, startAmbient, startIntroMusic, crossfadeToBoss, crossfadeToAmbient, crossfadeIntroToAmbient, stopAmbient, toggle, toggleMusic, unlock, isMuted:()=>muted, isMusicMuted:()=>musicMuted };
 })();
 function toggleSfx(){
   SFX.unlock();
   const muted = SFX.toggle();
   const btn = document.getElementById('sfxBtn'); if(btn) btn.textContent = muted?'🔇':'🔊';
+}
+function toggleMusic(){
+  SFX.unlock();
+  const off = SFX.toggleMusic();
+  const btn = document.getElementById('musicBtn');
+  if(btn){ btn.classList.toggle('off', off); btn.setAttribute('aria-pressed', off?'true':'false'); }
 }
 /* Клік по кнопках/опціях = звук click; той самий жест знімає блокування автоплею браузера. */
 document.addEventListener('click', function(e){
@@ -699,7 +719,7 @@ function markCompleted(id){
 function nonBossOps(){ return mapOps.filter(o=>o.id!==BOSS_ID); }
 function bossUnlocked(){ const done = getCompleted(); return nonBossOps().every(o=>done.includes(o.id)); }
 /* Правка плейтесту (п.5): кампанія відкривається хвилями. Спершу доступні перші
-   WAVE_SIZE (3) операції за складністю (порядок SCENARIOS: blackout→migrants —
+   WAVE_SIZE (3) операції за складністю (порядок SCENARIOS: blackout→dirty_bomb —
    від найлегшої до найважчої), наступна хвиля відкривається, коли попередня
    пройдена повністю. Порядок береться зі SCENARIOS (складність), не з mapOps
    (розкладка пінів). Групування суто engine-рівня — контент не чіпаємо. */
