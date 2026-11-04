@@ -1,2 +1,15 @@
+# Системне сміття
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Редактори
+.vscode/
+.idea/
+*.swp
+
+# Node (на випадок локальних утиліт)
+node_modules/
+
 # Сирі файли проєкту звуку (FL Studio) — не потрібні грі, лишаються на диску
 assets/sfx/ambientogg/
